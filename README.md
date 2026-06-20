@@ -1,6 +1,6 @@
 # sheldon (Go)
 
-> An E-Ink AI pet for the Raspberry Pi Zero 2W — chat-first, remote-LLM brain, a face that lives on your desk. A ground-up **Go rewrite** of the Python [`sheldon`](../sheldon) v2.
+> An E-Ink AI pet for the Raspberry Pi Zero 2W — chat-first, remote-LLM brain, a face that lives on your desk. A ground-up **Go rewrite** of the Python [`sheldon`](https://github.com/elliotboney/shelldon) v2.
 
 ## Status
 
@@ -37,14 +37,14 @@ Full reasoning: [`ARCHITECTURE-SPINE.md`](_bmad-output/planning-artifacts/archit
 
 ## Stack
 
-- **Go** (`CGO_ENABLED=0`, `GOARCH=arm64`) — single static binary, trivial cross-compile to the Pi
-- **modernc.org/sqlite** (pure-Go, FTS5) — conversation history + learnings
-- **periph.io** — Waveshare E-Ink + GPIO
-- **thejerf/suture/v4** — supervisor tree (the soul survives a broken limb)
-- **failsafe-go** — provider chain retry/fallback
-- **anthropics/anthropic-sdk-go**, **sashabaranov/go-openai** (GLM/OpenAI/OpenRouter), **ollama/ollama/api** — pluggable brain
-- **mymmrac/telego** — initial chat transport
-- Platform: Raspberry Pi OS 64-bit + systemd (gokrazy deferred)
+- **[Go](https://go.dev)** (`CGO_ENABLED=0`, `GOARCH=arm64`) — single static binary, trivial cross-compile to the Pi
+- **[modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite)** (pure-Go, FTS5) — conversation history + learnings
+- **[periph.io](https://periph.io)** — Waveshare E-Ink + GPIO
+- **[thejerf/suture/v4](https://github.com/thejerf/suture)** — supervisor tree (the soul survives a broken limb)
+- **[failsafe-go](https://failsafe-go.dev)** — provider chain retry/fallback
+- **[anthropics/anthropic-sdk-go](https://github.com/anthropics/anthropic-sdk-go)**, **[sashabaranov/go-openai](https://github.com/sashabaranov/go-openai)** (GLM/OpenAI/OpenRouter), **[ollama/ollama](https://github.com/ollama/ollama)** — pluggable brain
+- **[mymmrac/telego](https://github.com/mymmrac/telego)** — initial chat transport
+- Platform: **[Raspberry Pi OS](https://www.raspberrypi.com/software/)** 64-bit + **[systemd](https://systemd.io)** (**[gokrazy](https://gokrazy.org)** deferred)
 
 ## Lineage & attribution
 
@@ -52,7 +52,7 @@ sheldon sits at the end of a short lineage:
 
 - **[pwnagotchi](https://pwnagotchi.ai/)** (by [@evilsocket](https://github.com/evilsocket)) pioneered the E-Ink "virtual pet on a Pi Zero" form factor.
 - **[openclawgotchi](https://github.com/turmyshevd/openclawgotchi)** (MIT, by [Dmitry Turmyshev](https://github.com/turmyshevd)) made it a chat pet with an LLM brain.
-- **Python `sheldon`** was the v2 clean-room rebuild on a new spine.
+- **[Python `sheldon`](https://github.com/elliotboney/shelldon)** was the v2 clean-room rebuild on a new spine.
 - **`sheldon` (Go)** — this repo — is the v3 rewrite in Go.
 
 v1 is studied as reference, never copied. MIT attribution to Dmitry Turmyshev is retained (a `LICENSE` and `NOTICE` ship with the implementation).
