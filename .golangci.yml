@@ -1,0 +1,16 @@
+version: "2"
+
+linters:
+  enable:
+    - depguard
+  settings:
+    depguard:
+      rules:
+        contracts-pure:
+          files:
+            - "**/contracts/**"
+          deny:
+            - pkg: "github.com/anthropics/anthropic-sdk-go"
+              desc: "contracts must not import provider/LLM SDKs (AD-1)"
+            - pkg: "github.com/sashabaranov/go-openai"
+              desc: "contracts must not import provider/LLM SDKs (AD-1)"
