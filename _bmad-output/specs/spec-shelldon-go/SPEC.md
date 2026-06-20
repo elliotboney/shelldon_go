@@ -1,18 +1,18 @@
 ---
-id: SPEC-sheldon-go
+id: SPEC-shelldon-go
 companions:
-  - ../../planning-artifacts/architecture/architecture-sheldon_go-2026-06-19/ARCHITECTURE-SPINE.md
+  - ../../planning-artifacts/architecture/architecture-shelldon_go-2026-06-19/ARCHITECTURE-SPINE.md
 sources:
-  - ../../../../sheldon/_bmad-output/specs/spec-openclawgotchi-v2/SPEC.md
+  - ../../../../shelldon/_bmad-output/specs/spec-openclawgotchi-v2/SPEC.md
 ---
 
 > **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. Source documents listed in frontmatter are for traceability only — consult them only if you need narrative rationale or prose color this contract intentionally omits.
 
-# sheldon (Go rewrite)
+# shelldon (Go rewrite)
 
 ## Why
 
-A **vision to realize**, driven by **autonomy and craft**: Elliot wants an E-Ink AI pet that is genuinely his — built ground-up for the enjoyment of building it. At its core, `sheldon` is a **chat-bot pet**: the owner converses with the LLM brain by text, and the conversation runs over a **pluggable chat transport** rather than v1's hardcoded Telegram. It runs on a Raspberry Pi Zero 2W with remote LLMs as the brain; its face and presence live on the E-Ink screen. This spec governs the **Go rewrite** of the design previously specced in Python (`spec-openclawgotchi-v2`): the same chat-first, transport-agnostic pet, re-founded on a Go spine that collapses the Python multi-process body into **one supervised process** (see the architecture companion, AD-1) while preserving the hexagonal LLM-free soul. The rewrite exists to design out v1's documented failures (OOM, zero tests, safety scattered across a 1513-line connector, hardcoded transport) on a clean Go substrate. **Physical embodiment** through the Pi's GPIO (button, BLE presence, sensors) remains a genuinely interesting capability the hardware affords, but it is an *optional, secondary* layer over the chat — not the headline.
+A **vision to realize**, driven by **autonomy and craft**: Elliot wants an E-Ink AI pet that is genuinely his — built ground-up for the enjoyment of building it. At its core, `shelldon` is a **chat-bot pet**: the owner converses with the LLM brain by text, and the conversation runs over a **pluggable chat transport** rather than v1's hardcoded Telegram. It runs on a Raspberry Pi Zero 2W with remote LLMs as the brain; its face and presence live on the E-Ink screen. This spec governs the **Go rewrite** of the design previously specced in Python (`spec-openclawgotchi-v2`): the same chat-first, transport-agnostic pet, re-founded on a Go spine that collapses the Python multi-process body into **one supervised process** (see the architecture companion, AD-1) while preserving the hexagonal LLM-free soul. The rewrite exists to design out v1's documented failures (OOM, zero tests, safety scattered across a 1513-line connector, hardcoded transport) on a clean Go substrate. **Physical embodiment** through the Pi's GPIO (button, BLE presence, sensors) remains a genuinely interesting capability the hardware affords, but it is an *optional, secondary* layer over the chat — not the headline.
 
 ## Capabilities
 
@@ -99,7 +99,7 @@ A **vision to realize**, driven by **autonomy and craft**: Elliot wants an E-Ink
 
 ## Success signal
 
-`sheldon` runs continuously on the Pi Zero 2W as a single supervised Go process, holding a multi-turn text conversation with the owner over the pluggable chat transport without OOM (the defining v1 failure), feeling alive between LLM turns through resident reflexes shown on the E-Ink face — and surviving any single edge failure (a transport or display crash) without the soul dying. Optionally, with physical-sensing plugins enabled, it reacts to presence and button without being prompted. It is a chat-bot pet Elliot built from scratch — a transport-agnostic conversational core with a face on the desk, freed from v1's hardcoded Telegram.
+`shelldon` runs continuously on the Pi Zero 2W as a single supervised Go process, holding a multi-turn text conversation with the owner over the pluggable chat transport without OOM (the defining v1 failure), feeling alive between LLM turns through resident reflexes shown on the E-Ink face — and surviving any single edge failure (a transport or display crash) without the soul dying. Optionally, with physical-sensing plugins enabled, it reacts to presence and button without being prompted. It is a chat-bot pet Elliot built from scratch — a transport-agnostic conversational core with a face on the desk, freed from v1's hardcoded Telegram.
 
 ## Assumptions
 

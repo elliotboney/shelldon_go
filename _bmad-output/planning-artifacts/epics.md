@@ -1,15 +1,15 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
-  - ../specs/spec-sheldon-go/SPEC.md
-  - planning-artifacts/architecture/architecture-sheldon_go-2026-06-19/ARCHITECTURE-SPINE.md
+  - ../specs/spec-shelldon-go/SPEC.md
+  - planning-artifacts/architecture/architecture-shelldon_go-2026-06-19/ARCHITECTURE-SPINE.md
 ---
 
-# sheldon (Go rewrite) - Epic Breakdown
+# shelldon (Go rewrite) - Epic Breakdown
 
 ## Overview
 
-This document provides the complete epic and story breakdown for sheldon (Go rewrite), decomposing the requirements from the SPEC (capability contract, in place of a PRD) and the Architecture Spine into implementable stories. Epics follow the milestone arc M0–M4 the architecture reasoned through; capabilities CAP-1…CAP-11 map across them.
+This document provides the complete epic and story breakdown for shelldon (Go rewrite), decomposing the requirements from the SPEC (capability contract, in place of a PRD) and the Architecture Spine into implementable stories. Epics follow the milestone arc M0–M4 the architecture reasoned through; capabilities CAP-1…CAP-11 map across them.
 
 ## Requirements Inventory
 
@@ -117,7 +117,7 @@ Swap the render target from terminal to the Waveshare E-Ink compositor (same reg
 
 ### Story 1.1: Versioned contracts + gob round-trip
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want versioned `Envelope`/`Job`/`Result` Go structs with the closed header in `contracts/` that round-trip through gob,
 So that the M3 UDS+gob transport swap cannot surface a serialization incompatibility later and the contract stays a binding invariant.
 
@@ -138,7 +138,7 @@ So that the M3 UDS+gob transport swap cannot surface a serialization incompatibi
 
 ### Story 1.2: Core-owned channel hub + point-to-point routing
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want a core-owned in-process channel hub that routes a `Job` to its registered destination by `kind`,
 So that edges communicate only through the bus and an unknown destination fails safe instead of crashing the soul (AD-1, AD-4).
 
@@ -158,7 +158,7 @@ So that edges communicate only through the bus and an unknown destination fails 
 
 ### Story 1.3: Worker seam interface + stub + ≤1-in-flight arbiter gate
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want the `Worker.AssembleAndPropose(ctx, turn) (Result, error)` interface with a stub implementation and an arbiter that admits at most one worker turn,
 So that the isolation seam and the ≤1-worker invariant exist from M0 and never reshape callers when the real worker or subprocess swaps in (AD-2, AD-8, NFR4).
 
@@ -178,7 +178,7 @@ So that the isolation seam and the ≤1-worker invariant exist from M0 and never
 
 ### Story 1.4: suture supervisor root + soul-survives-edge-panic
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want `core` as the suture/v4 supervisor root with every edge a supervised `Service` carrying its own `recover()` + backoff and graceful shutdown,
 So that a single edge panic degrades gracefully instead of killing the pet (the required soul-survives M0 test, AD-5, NFR10).
 
@@ -198,7 +198,7 @@ So that a single edge panic degrades gracefully instead of killing the pet (the 
 
 ### Story 1.5: CLI transport adapter + end-to-end round-trip
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want a CLI chat-transport adapter that emits inbound-message and consumes outbound-message envelopes over the transport-agnostic contract,
 So that a message round-trips inbound→core→worker seam→stub→outbound→CLI and proves the spine is wired end-to-end (FR9, AD-12).
 
@@ -214,7 +214,7 @@ So that a message round-trips inbound→core→worker seam→stub→outbound→C
 
 ### Story 1.6: Cross-compile + atomic-write crash-safety + on-Pi run
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want the spine to cross-compile to a single static arm64 binary, perform crash-safe atomic markdown writes, and pass all four required tests plus the CLI round-trip on the Pi itself,
 So that M0 is a real walking skeleton validated on target hardware, not just the laptop (NFR2, AD-10).
 
@@ -590,7 +590,7 @@ So that the render target swaps with no core change (FR1 E-Ink completion, AD-6,
 
 ### Story 6.2: Compile-time plugin registry
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want plugins added by compile-time registration with conflicting claims rejected at startup,
 So that hardware and behavioral plugins extend the pet without touching core and without breaking LLM-free-core enforcement (FR7, AD-14).
 

@@ -4,8 +4,8 @@ lastStep: 6
 inputDocuments: []
 workflowType: 'research'
 research_type: 'technical'
-research_topic: 'Language selection for rewriting sheldon on Pi Zero 2W'
-research_goals: 'Determine the best language (Go vs Rust vs Zig vs other) for rewriting the sheldon AI E-ink pet bot for Pi Zero 2W, considering RAM constraints, ecosystem maturity, E-ink/GPIO support, LLM API integration, and developer ergonomics'
+research_topic: 'Language selection for rewriting shelldon on Pi Zero 2W'
+research_goals: 'Determine the best language (Go vs Rust vs Zig vs other) for rewriting the shelldon AI E-ink pet bot for Pi Zero 2W, considering RAM constraints, ecosystem maturity, E-ink/GPIO support, LLM API integration, and developer ergonomics'
 user_name: 'Elliot'
 date: '2026-06-19'
 web_research_enabled: true
@@ -22,16 +22,16 @@ source_verification: true
 
 ## Research Overview
 
-This document evaluates whether — and how — to rewrite **sheldon** (the chat-first E-Ink AI pet, currently a Python 3.13 multi-process app) in Go or another fast language, targeting the Raspberry Pi Zero 2W (quad-core Cortex-A53, **512MB RAM**). It was produced through a six-step facilitated technical-research workflow (scope → technology stack → integration patterns → architecture → implementation → synthesis), with every claim verified by parallel web-search agents against current (2024–2026) sources.
+This document evaluates whether — and how — to rewrite **shelldon** (the chat-first E-Ink AI pet, currently a Python 3.13 multi-process app) in Go or another fast language, targeting the Raspberry Pi Zero 2W (quad-core Cortex-A53, **512MB RAM**). It was produced through a six-step facilitated technical-research workflow (scope → technology stack → integration patterns → architecture → implementation → synthesis), with every claim verified by parallel web-search agents against current (2024–2026) sources.
 
-**The headline:** Go is the right language. But the more consequential finding is architectural — **most of sheldon's multi-process actor design (fork-server workers, UDS envelope bus) is a workaround for Python's limitations and collapses in Go**, while a *subset* (worker/vault/broker isolation) is a genuine security boundary the rewrite must consciously preserve. The single decision that governs the whole port is whether the threat model treats the LLM worker as untrusted (the spine says yes). The full reasoning and a final recommendation are in the **Research Synthesis & Recommendation** section at the end.
+**The headline:** Go is the right language. But the more consequential finding is architectural — **most of shelldon's multi-process actor design (fork-server workers, UDS envelope bus) is a workaround for Python's limitations and collapses in Go**, while a *subset* (worker/vault/broker isolation) is a genuine security boundary the rewrite must consciously preserve. The single decision that governs the whole port is whether the threat model treats the LLM worker as untrusted (the spine says yes). The full reasoning and a final recommendation are in the **Research Synthesis & Recommendation** section at the end.
 
 ---
 
 ## Technical Research Scope Confirmation
 
-**Research Topic:** Language selection for rewriting sheldon on Pi Zero 2W
-**Research Goals:** Determine the best language (Go vs Rust vs Zig vs other) for rewriting the sheldon AI E-ink pet bot for Pi Zero 2W, considering RAM constraints, ecosystem maturity, E-ink/GPIO support, LLM API integration, and developer ergonomics
+**Research Topic:** Language selection for rewriting shelldon on Pi Zero 2W
+**Research Goals:** Determine the best language (Go vs Rust vs Zig vs other) for rewriting the shelldon AI E-ink pet bot for Pi Zero 2W, considering RAM constraints, ecosystem maturity, E-ink/GPIO support, LLM API integration, and developer ergonomics
 
 **Technical Research Scope:**
 
@@ -175,7 +175,7 @@ Community 2025 consensus: `telego` or `go-telegram/bot` for new Go projects. `te
 | GC overhead | ~10% CPU | 0% |
 | Complexity for I/O-bound bot | Simple (spawn goroutines) | Moderate (async/await + ownership) |
 
-**For sheldon's workload** (poll Telegram + ticker loops + LLM HTTP calls): 3–5 concurrent tasks. Go: ~10–40 KB overhead — negligible. Rust's per-task advantage doesn't matter at bot scale. Discord rewrote Go → Rust and saved 7x RAM — relevant at 1M concurrent connections, not for a single-user pet bot.
+**For shelldon's workload** (poll Telegram + ticker loops + LLM HTTP calls): 3–5 concurrent tasks. Go: ~10–40 KB overhead — negligible. Rust's per-task advantage doesn't matter at bot scale. Discord rewrote Go → Rust and saved 7x RAM — relevant at 1M concurrent connections, not for a single-user pet bot.
 
 ---
 
@@ -192,13 +192,13 @@ Community 2025 consensus: `telego` or `go-telegram/bot` for new Go projects. `te
 
 ## Integration Patterns Analysis
 
-*Research date: 2026-06-19. All claims multi-source verified via parallel web search agents. Scoped to sheldon's actual architecture, not generic enterprise patterns.*
+*Research date: 2026-06-19. All claims multi-source verified via parallel web search agents. Scoped to shelldon's actual architecture, not generic enterprise patterns.*
 
 ---
 
 ### ⭐ Headline Finding: The Fork-Worker Pattern Is Likely Unnecessary in Go
 
-This is the most consequential finding for the rewrite. **sheldon's central v1→v2 design decision — ephemeral fork-server workers that run one turn and die so RAM never accumulates — does not transfer to Go, and probably shouldn't.**
+This is the most consequential finding for the rewrite. **shelldon's central v1→v2 design decision — ephemeral fork-server workers that run one turn and die so RAM never accumulates — does not transfer to Go, and probably shouldn't.**
 
 **Why Python forks but Go shouldn't:**
 - Python's `os.fork()` is cheap (copy-on-write, no exec) AND CPython's allocator fragments and doesn't reliably return memory. Forking per-turn is the natural fix.
@@ -232,7 +232,7 @@ _Source:_ https://grammy.dev/guide/deployment-types, https://pkg.go.dev/github.c
 
 ### Pluggable Transport Adapter (CLI / Telegram / future)
 
-sheldon's "transport-agnostic adapter contract" maps cleanly onto Go's implicit interfaces — this is where Go shines vs Python.
+shelldon's "transport-agnostic adapter contract" maps cleanly onto Go's implicit interfaces — this is where Go shines vs Python.
 
 **The pattern:** A minimal interface, your own message types (never leak `telego.Update` into core):
 ```go
@@ -260,7 +260,7 @@ Official `anthropics/anthropic-sdk-go` (Go 1.23+) handles SSE cleanly:
 
 ### LLM Provider Fallback Chain (GLM → Ollama → OpenAI → OpenRouter)
 
-sheldon's "pluggable, ordered provider chain" is hand-rolled in Go — no LiteLLM-equivalent dominates, and you don't need one (~150 lines):
+shelldon's "pluggable, ordered provider chain" is hand-rolled in Go — no LiteLLM-equivalent dominates, and you don't need one (~150 lines):
 - **`Provider` interface + ordered slice + per-provider circuit breaker.** Iterate in cost order, return first success.
 - **One client covers three providers:** `sashabaranov/go-openai` works against GLM/Zhipu, OpenAI, AND OpenRouter just by swapping `BaseURL`:
   - GLM: `https://open.bigmodel.cn/api/paas/v4/` (intl: `https://api.z.ai/api/paas/v4/`), models like `glm-4.6` — *gotcha: rejects empty `content` fields*
@@ -273,7 +273,7 @@ sheldon's "pluggable, ordered provider chain" is hand-rolled in Go — no LiteLL
 
 ### Security Boundary — Single Credential Holder (Capability Broker)
 
-sheldon's "one capability broker is the sole holder of LLM creds; nothing else can call a model" maps onto a well-established Go idiom — **wrap an `http.RoundTripper`:**
+shelldon's "one capability broker is the sole holder of LLM creds; nothing else can call a model" maps onto a well-established Go idiom — **wrap an `http.RoundTripper`:**
 - Broker holds credentials + an embedded `Transport`. Its `RoundTrip()` clones the request, injects the auth header, delegates downward.
 - Expose only `Client() *http.Client`. Hand that pre-authorized client to downstream code, which **never sees the raw key** — they physically can't make an unauthenticated call.
 - Composable as "Tripperware" (chain auth + logging + retry RoundTrippers). Real precedent: k8s `client-go` `WrapTransport`, `go-jira` `BasicAuthTransport`.
@@ -292,9 +292,9 @@ The display is the one component that genuinely benefits from a dedicated gorout
 
 ---
 
-### Integration Summary — How sheldon's v2 Boundaries Map to Go
+### Integration Summary — How shelldon's v2 Boundaries Map to Go
 
-| sheldon v2 design element | Go translation | Verdict |
+| shelldon v2 design element | Go translation | Verdict |
 |---|---|---|
 | Ephemeral fork-server workers | Single process + goroutine/turn + `GOMEMLIMIT` | **Collapses — likely unneeded** |
 | Transport-agnostic adapter contract | Implicit interface + per-backend struct | **Natural fit, cleaner than Python** |
@@ -306,13 +306,13 @@ The display is the one component that genuinely benefits from a dedicated gorout
 
 ## Architectural Patterns and Design
 
-*Research date: 2026-06-19. Grounded against sheldon's adopted v2 architecture spine (AD-1…AD-15). All Go claims web-verified.*
+*Research date: 2026-06-19. Grounded against shelldon's adopted v2 architecture spine (AD-1…AD-15). All Go claims web-verified.*
 
 ---
 
 ### ⚠️ The Central Architectural Tension
 
-sheldon's v2 spine is **"a multi-process actor model over a typed message bus, around a hexagonal LLM-free core."** The research reveals that **a large fraction of that multi-process machinery exists to work around Python, not to satisfy a requirement** — and in Go it collapses. But a *subset* of it is a genuine security boundary that a naïve single-process Go port would silently destroy. Getting this distinction right is the most important architectural decision in the rewrite.
+shelldon's v2 spine is **"a multi-process actor model over a typed message bus, around a hexagonal LLM-free core."** The research reveals that **a large fraction of that multi-process machinery exists to work around Python, not to satisfy a requirement** — and in Go it collapses. But a *subset* of it is a genuine security boundary that a naïve single-process Go port would silently destroy. Getting this distinction right is the most important architectural decision in the rewrite.
 
 **What each multi-process decision actually buys, and whether Go still needs it:**
 
@@ -324,7 +324,7 @@ sheldon's v2 spine is **"a multi-process actor model over a typed message bus, a
 | **AD-6 `vault/` OS-uid exclusion** | Worker runs under less-privileged uid; vault perms exclude it → prompt-injected worker *physically cannot* read secrets | **This is the load-bearing security boundary.** It REQUIRES the worker to be a separate OS process under a different uid. Single-process Go goroutines share one uid and one address space — this protection vanishes entirely. |
 | **AD-5 single-writer core** | Prevent cross-process write races | **Trivially better in Go** — one goroutine owns the store, others send proposed writes over a channel. No races by construction. |
 
-**The decision this forces:** How much process isolation does sheldon's *threat model* actually require? Two coherent architectures fall out, and you must pick deliberately — not drift into one.
+**The decision this forces:** How much process isolation does shelldon's *threat model* actually require? Two coherent architectures fall out, and you must pick deliberately — not drift into one.
 
 ---
 
@@ -375,7 +375,7 @@ AD-1's import-linter has a direct Go equivalent — actually **two complementary
 
 ### Memory Layer (AD-6/AD-7) in Go
 
-- **SQLite: use `modernc.org/sqlite` (pure Go, no cgo).** Confirmed **FTS5 support compiled in by default** — this was the make-or-break for AD-6's conversation recall, and it works with `CGO_ENABLED=0` cross-compile to ARM64. Performance is ~75% of cgo `mattn/go-sqlite3` (worst case ~2x slower on some queries) — irrelevant at sheldon's data scale, and it buys you static-binary cross-compile with zero C toolchain.
+- **SQLite: use `modernc.org/sqlite` (pure Go, no cgo).** Confirmed **FTS5 support compiled in by default** — this was the make-or-break for AD-6's conversation recall, and it works with `CGO_ENABLED=0` cross-compile to ARM64. Performance is ~75% of cgo `mattn/go-sqlite3` (worst case ~2x slower on some queries) — irrelevant at shelldon's data scale, and it buys you static-binary cross-compile with zero C toolchain.
 - **WAL + batched commits (AD-6):** `PRAGMA journal_mode=WAL` + `synchronous=NORMAL` + explicit transactions for batching. Exactly the SD-wear mitigation the spine calls for; modernc honors all of it (it's transpiled SQLite).
 - **Atomic markdown writes (AD-6):** temp + `fsync` + `rename` + **`fsync` the parent dir** (the forgotten step that prevents 0-length files after power loss). Use **`google/renameio/v2`** (Linux-only, handles the dir-fsync for you) — directly satisfies AD-10's required atomic-write crash-safety test.
 - _Source:_ https://pkg.go.dev/modernc.org/sqlite, https://github.com/google/renameio
@@ -480,11 +480,11 @@ A sequencing that honors both the spine and the walking-skeleton evidence:
 
 ---
 
-# Research Synthesis & Recommendation: Rewriting sheldon in Go
+# Research Synthesis & Recommendation: Rewriting shelldon in Go
 
 ## Executive Summary
 
-sheldon is a chat-first E-Ink AI pet designed to run forever on a 512MB Raspberry Pi Zero 2W. Its Python v2 architecture — a multi-process actor model with fork-server workers, a Unix-domain-socket envelope bus, and a hexagonal LLM-free core — is an elegant response to Python's specific weaknesses: weak memory reclamation, the GIL, and the cheapness of `os.fork()`. This research asked whether a faster language would serve the project better, and concluded **yes, Go** — but with a crucial caveat that reframes the entire effort.
+shelldon is a chat-first E-Ink AI pet designed to run forever on a 512MB Raspberry Pi Zero 2W. Its Python v2 architecture — a multi-process actor model with fork-server workers, a Unix-domain-socket envelope bus, and a hexagonal LLM-free core — is an elegant response to Python's specific weaknesses: weak memory reclamation, the GIL, and the cheapness of `os.fork()`. This research asked whether a faster language would serve the project better, and concluded **yes, Go** — but with a crucial caveat that reframes the entire effort.
 
 **Go wins the language question decisively** on the axes that matter for this project: it has the only *official* Anthropic SDK among the candidates, mature pure-Go libraries for every hardware and integration need (SQLite-with-FTS5, Waveshare E-Ink, GPIO, Telegram), trivial single-binary cross-compilation to ARM64, and a concurrency model that maps cleanly onto a bot juggling chat, reflexes, and LLM calls. Rust is faster and leaner but pays for it in unofficial LLM SDKs, a just-retired GPIO anchor library (`rppal`), and a steeper solo-dev cost. Nim is a credible dark-horse worth a short spike. Zig, Swift, and Crystal are ruled out (pre-1.0, 127MB binaries, and ARM-bootstrap pain respectively).
 
@@ -512,7 +512,7 @@ Three coherent architectures fall out of the research. They are **not** equally 
 | Go idiom / simplicity | Low ("fast Python") | Highest | High |
 | Verdict | Safe but heavy | Simple but insecure | **Best balance** |
 
-**The governing question:** *Does sheldon's threat model treat the LLM worker as untrusted?* The spine answers yes — AD-6's entire purpose is "a prompt-injected worker physically cannot read vault." **If that threat is real, Option B is off the table**, and the choice is A vs C, where **C wins on simplicity** by keeping only the one boundary that earns its cost. This is the first thing to settle in brainstorming, because it determines whether the bus serializes at all.
+**The governing question:** *Does shelldon's threat model treat the LLM worker as untrusted?* The spine answers yes — AD-6's entire purpose is "a prompt-injected worker physically cannot read vault." **If that threat is real, Option B is off the table**, and the choice is A vs C, where **C wins on simplicity** by keeping only the one boundary that earns its cost. This is the first thing to settle in brainstorming, because it determines whether the bus serializes at all.
 
 ## Strategic Recommendations
 
@@ -539,7 +539,7 @@ Three coherent architectures fall out of the research. They are **not** equally 
 
 ## Conclusion & Next Steps
 
-Go is the correct language for sheldon, but the research's real value is in showing that **the rewrite is more of an architectural decision than a language one.** The hexagonal soul of the v2 spine survives the port and gets cleaner; the multi-process body mostly dissolves into idiomatic Go, leaving one security boundary that must be kept by intent rather than inherited by accident.
+Go is the correct language for shelldon, but the research's real value is in showing that **the rewrite is more of an architectural decision than a language one.** The hexagonal soul of the v2 spine survives the port and gets cleaner; the multi-process body mostly dissolves into idiomatic Go, leaving one security boundary that must be kept by intent rather than inherited by accident.
 
 **Immediate next steps:**
 1. **Brainstorm the Option A/B/C decision** (recommended: `bmad-brainstorming`) — resolve the worker threat-model question; everything else follows from it.

@@ -1,13 +1,13 @@
 ---
 review-type: technical-currency
-target: ARCHITECTURE-SPINE.md (sheldon Go rewrite)
+target: ARCHITECTURE-SPINE.md (shelldon Go rewrite)
 reviewer: technical-currency-reviewer
 date: 2026-06-19
 method: live web verification (2024-2026 sources)
 verdict: SOUND — 10/11 confirmed; 1 minor correction (renameio parent-dir fsync); 0 blockers
 ---
 
-# Technical-Currency Review — sheldon (Go rewrite) Architecture Spine
+# Technical-Currency Review — shelldon (Go rewrite) Architecture Spine
 
 Every committed technology choice in the Stack table and the AD rules was checked against
 the live web. Each claim below is tagged **CONFIRMED** or **FLAGGED**. One claim is partially

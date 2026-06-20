@@ -1,21 +1,21 @@
 ---
-name: 'sheldon (Go rewrite)'
+name: 'shelldon (Go rewrite)'
 type: architecture-spine
 purpose: build-substrate
 altitude: initiative
 paradigm: 'a single supervised Go process — a hexagonal LLM-free core with goroutine actors over an in-process typed channel bus, and the untrusted brain behind a swappable isolation seam'
-scope: 'Whole system — Go rewrite of sheldon, the chat-first E-Ink AI pet on a Raspberry Pi Zero 2W (512MB): core, broker, worker, chat-transport, display, plugins, memory.'
+scope: 'Whole system — Go rewrite of shelldon, the chat-first E-Ink AI pet on a Raspberry Pi Zero 2W (512MB): core, broker, worker, chat-transport, display, plugins, memory.'
 status: final
 created: '2026-06-19'
 updated: '2026-06-19'
 binds: ['CAP-1','CAP-2','CAP-3','CAP-4','CAP-5','CAP-6','CAP-7','CAP-8','CAP-9','CAP-10','CAP-11']
 sources:
-  - '../../../../../sheldon/_bmad-output/planning-artifacts/architecture/architecture-shelldon-2026-06-15/ARCHITECTURE-SPINE.md'
-  - '../../research/technical-language-selection-sheldon-pi-zero-research-2026-06-19.md'
+  - '../../../../../shelldon/_bmad-output/planning-artifacts/architecture/architecture-shelldon-2026-06-15/ARCHITECTURE-SPINE.md'
+  - '../../research/technical-language-selection-shelldon-pi-zero-research-2026-06-19.md'
 companions: []
 ---
 
-# Architecture Spine — sheldon (Go rewrite)
+# Architecture Spine — shelldon (Go rewrite)
 
 > A consistency contract, not a design document. It fixes the **invariants** that keep the features
 > built below it coherent. Structure is **seed** — the code owns the detail once it exists.
@@ -218,7 +218,7 @@ flowchart TD
 ```
 
 ```text
-sheldon_go/
+shelldon_go/
   core/          # LLM-free (depguard + internal/ enforced): bus/ arbiter/ scheduler/ reflexes/ state/ memory/(owner) — suture root
   broker/        # creds, provider chain+fallback, tool exec, safety; broker/internal/llm/ holds provider SDKs
   worker/        # Worker interface (AssembleAndPropose): Monolith+ (goroutine) now, Privsep-lite (subprocess) @ M3; normal + dream turns

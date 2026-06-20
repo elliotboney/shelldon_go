@@ -1,5 +1,5 @@
 ---
-name: 'Adversarial seam review — sheldon (Go rewrite) spine'
+name: 'Adversarial seam review — shelldon (Go rewrite) spine'
 type: architecture-review
 review-kind: adversarial / divergence-pair hunt
 target: '../ARCHITECTURE-SPINE.md'
@@ -8,7 +8,7 @@ created: '2026-06-19'
 verdict: 'Strong spine, but six seams permit two conformant units to build incompatibly. Three are critical.'
 ---
 
-# Adversarial Seam Review — sheldon (Go rewrite)
+# Adversarial Seam Review — shelldon (Go rewrite)
 
 **Method.** For each seam I constructed two concrete units one level down (two plugins, two scheduler jobs, two transport adapters, two memory-ops, two display claimers) that each obey **every** AD verbatim, then drove them until they collide. A finding only counts if both units pass every cited AD *and* still produce mutually incompatible code/state. Vague "could be clearer" notes are excluded.
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>sheldon · architecture brainstorm · 2026-06-19</title>
+<title>shelldon · architecture brainstorm · 2026-06-19</title>
 <style>
   /* ===== E-Ink grayscale palette ===== */
   :root{
@@ -276,7 +276,7 @@
         <div class="eye r"></div>
         <div class="mouth"></div>
       </div>
-      <div class="title">sheldon <span class="arrow">→</span> go</div>
+      <div class="title">shelldon <span class="arrow">→</span> go</div>
       <div class="subtitle">architecture brainstorm · the great rewrite</div>
       <div class="sub2">A TAMAGOTCHI DEVLOG · 2026-06-19</div>
     </div>
@@ -354,7 +354,7 @@
 
     <div class="gallery">
       <div class="card"><div class="name">Web Browser <span class="vote">→ C/A</span></div><div class="body">A tab = separate OS process; the kernel holds cookies. Chrome chose process isolation because shared memory wasn't safe. Worker = a tab.</div></div>
-      <div class="card"><div class="name">AWS Lambda <span class="vote">weak</span></div><div class="body">Untrusted code in Firecracker microVMs, one per invocation. But that's <b>multi-tenancy</b>; sheldon is single-tenant.</div></div>
+      <div class="card"><div class="name">AWS Lambda <span class="vote">weak</span></div><div class="body">Untrusted code in Firecracker microVMs, one per invocation. But that's <b>multi-tenancy</b>; shelldon is single-tenant.</div></div>
       <div class="card"><div class="name">Game Mods <span class="vote">→ WASM</span></div><div class="body">Mods run in a sandboxed Lua VM <i>inside</i> the host — capability-restricted, not a process. The wazero pedigree.</div></div>
       <div class="card"><div class="name">Payment Terminal <span class="vote">→ keeper</span></div><div class="body">A secure element holds keys on separate silicon; the app never sees the key, only asks it to sign. Broker-as-keeper, in hardware.</div></div>
       <div class="card"><div class="name">qmail / postfix <span class="vote">→ A</span></div><div class="body">A monolith split into tiny single-uid processes over pipes. Bernstein privilege separation — 25-year-proven. The spine is qmail-shaped.</div></div>
@@ -363,7 +363,7 @@
       <div class="card"><div class="name">seL4 / Fuchsia <span class="vote">→ WASM</span></div><div class="body">No ambient authority — only what you were handed a capability for. Hand the worker call-model + read-history, nothing else. wazero host-fns enforce it.</div></div>
     </div>
 
-    <div class="split">The analogies <b>split by tenancy</b> ⟶ multi-tenant (browser, Lambda) spends heavily on process/VM isolation; single-tenant embedded (game mods, your desk pet) accepts in-process sandboxing. sheldon is single-tenant — the WASM sandbox is more defensible than the browser analogy first suggests.</div>
+    <div class="split">The analogies <b>split by tenancy</b> ⟶ multi-tenant (browser, Lambda) spends heavily on process/VM isolation; single-tenant embedded (game mods, your desk pet) accepts in-process sandboxing. shelldon is single-tenant — the WASM sandbox is more defensible than the browser analogy first suggests.</div>
   </section>
 
   <!-- ================= WAVE 3 ================= -->
@@ -497,7 +497,7 @@
 
   <footer>
     <div class="face-mini">[•‿•]</div>
-    sheldon · go-rewrite architecture · 63 entries · ~53 ideas · 5 waves<br>
+    shelldon · go-rewrite architecture · 63 entries · ~53 ideas · 5 waves<br>
     the soul is the constant · the brain is a costume · the seam is the deliverable<br>
     <span style="color:var(--faint)">— brainstorm closed · 2026-06-19 22:39 —</span>
   </footer>

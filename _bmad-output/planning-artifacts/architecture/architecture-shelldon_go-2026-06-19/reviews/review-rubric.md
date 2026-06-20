@@ -1,6 +1,6 @@
-# Rubric Review — ARCHITECTURE-SPINE.md (sheldon Go rewrite)
+# Rubric Review — ARCHITECTURE-SPINE.md (shelldon Go rewrite)
 
-**Reviewed:** `architecture-sheldon_go-2026-06-19/ARCHITECTURE-SPINE.md`
+**Reviewed:** `architecture-shelldon_go-2026-06-19/ARCHITECTURE-SPINE.md`
 **Against:** Python v2 source spine (`architecture-shelldon-2026-06-15`) + language-selection research (2026-06-19)
 **Date:** 2026-06-19
 **Verdict:** **Strong, ship-with-one-fix.** This is a high-quality port that ratifies the Python logical invariants, correctly collapses the physical multi-process body into one supervised process, and stages the one real security boundary (worker isolation) as a milestone gate rather than dropping it. It clears 6 of 7 checklist criteria cleanly. The one material defect is a **silently dropped Python invariant (Py AD-7, volatile-state checkpointing)**, plus a whole-dimension silence on the **operational/environmental envelope** (no environments/config/observability/logging dimension). Both are fixable with small additions; neither breaks the existing ADs.

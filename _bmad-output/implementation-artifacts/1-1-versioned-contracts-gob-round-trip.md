@@ -10,7 +10,7 @@ Status: done
 
 ## Story
 
-As a developer building sheldon,
+As a developer building shelldon,
 I want versioned `Envelope`/`Job`/`Result` Go structs with the closed header in `contracts/` that round-trip through `encoding/gob`,
 so that the M3 UDS+gob transport swap cannot surface a serialization incompatibility later and the contract stays a binding invariant the whole system depends on.
 
@@ -39,7 +39,7 @@ This is the **first code in the repository** — there is no `go.mod` yet. The s
 ## Tasks / Subtasks
 
 - [x] **Task 0 — Bootstrap the Go module** (AC: 3)
-  - [x] `go mod init github.com/elliotboney/sheldon_go` (module path confirmed with Elliot to match the actual git remote — underscore, not the hyphen guessed in Dev Notes)
+  - [x] `go mod init github.com/elliotboney/shelldon_go` (module path confirmed with Elliot to match the actual git remote — underscore, not the hyphen guessed in Dev Notes)
   - [x] Set the Go version directive in `go.mod` to `1.25` (matches the spine Stack; `testing/synctest` GA, used by later stories)
   - [x] Add a `.golangci.yml` with a `depguard` rule (see Dev Notes for the exact rule); minimal for now — the full LLM-free-core fence is wired in Story 3.1
 - [x] **Task 1 — Define the closed header and Envelope** (AC: 1)
@@ -97,7 +97,7 @@ The spine names four required M0 tests; **this story delivers the contract gob r
 ### Project structure (greenfield — you are creating it)
 
 ```
-sheldon_go/
+shelldon_go/
   go.mod                  # NEW — Task 0
   .golangci.yml           # NEW — depguard rule
   contracts/              # NEW — this story's package
@@ -140,16 +140,16 @@ Recent commits are all planning artifacts (`0227e40` initial planning stack → 
 ### Project Structure Notes
 
 - Greenfield: no variance to reconcile. The package layout above is the authoritative seed from the spine; follow it exactly so later stories slot in without churn.
-- **Open question (module path):** `github.com/elliotboney/sheldon-go` is the assumed module path (the Go repo has no git remote set yet; the Python original is `github.com/elliotboney/shelldon`). If you intend a different remote/module path, set it in `go mod init` accordingly — changing it later means rewriting every import. Confirm before Task 0.
+- **Open question (module path):** `github.com/elliotboney/shelldon-go` is the assumed module path (the Go repo has no git remote set yet; the Python original is `github.com/elliotboney/shelldon`). If you intend a different remote/module path, set it in `go mod init` accordingly — changing it later means rewriting every import. Confirm before Task 0.
 
 ### References
 
 - [Source: _bmad-output/planning-artifacts/epics.md#Story 1.1] — ACs, epic goal
-- [Source: _bmad-output/planning-artifacts/architecture/architecture-sheldon_go-2026-06-19/ARCHITECTURE-SPINE.md#AD-4] — uniform Envelope, transport-as-seed
+- [Source: _bmad-output/planning-artifacts/architecture/architecture-shelldon_go-2026-06-19/ARCHITECTURE-SPINE.md#AD-4] — uniform Envelope, transport-as-seed
 - [Source: ...ARCHITECTURE-SPINE.md#AD-10] — versioned contracts, required M0 tests, additive evolution
 - [Source: ...ARCHITECTURE-SPINE.md#AD-11] — closed header id/v/kind/src/dst/turn_id, routing modes
 - [Source: ...ARCHITECTURE-SPINE.md#AD-1] — LLM-free packages, depguard
-- [Source: _bmad-output/specs/spec-sheldon-go/SPEC.md] — NFR2 (CGO_ENABLED=0/arm64), NFR8 (no creds on bus), NFR9 (required tests)
+- [Source: _bmad-output/specs/spec-shelldon-go/SPEC.md] — NFR2 (CGO_ENABLED=0/arm64), NFR8 (no creds on bus), NFR9 (required tests)
 
 ## Dev Agent Record
 
@@ -159,7 +159,7 @@ claude-opus-4-8[1m] (Claude Opus 4.8, 1M context) via Claude Code dev-story work
 
 ### Debug Log References
 
-- Module path open question resolved with Elliot: chose `github.com/elliotboney/sheldon_go` (underscore) to match the actual git remote `https://github.com/elliotboney/sheldon_go.git`, overriding the Dev Notes guess of `sheldon-go` (hyphen). Changing the path later would mean rewriting every import.
+- Module path open question resolved with Elliot: chose `github.com/elliotboney/shelldon_go` (underscore) to match the actual git remote `https://github.com/elliotboney/shelldon_go.git`, overriding the Dev Notes guess of `shelldon-go` (hyphen). Changing the path later would mean rewriting every import.
 - `golangci-lint` was not installed; installed v2.12.2 via `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`. The `.golangci.yml` uses the golangci-lint **v2** config schema (`version: "2"`, linters under `settings:`), not the v1 schema shown in Dev Notes — the v1 form is silently ignored by v2. The Dev Notes already flagged this schema drift as a risk.
 - Verified depguard is not a no-op: temporarily denied `encoding/gob` (a package the code imports) and confirmed depguard flagged it in `register.go` and `contracts_test.go`, then reverted to the provider-SDK deny list.
 
@@ -173,7 +173,7 @@ claude-opus-4-8[1m] (Claude Opus 4.8, 1M context) via Claude Code dev-story work
 
 ### File List
 
-- `go.mod` (new) — module `github.com/elliotboney/sheldon_go`, go 1.25
+- `go.mod` (new) — module `github.com/elliotboney/shelldon_go`, go 1.25
 - `.golangci.yml` (new) — golangci-lint v2 config with the `contracts-pure` depguard rule
 - `contracts/envelope.go` (new) — `Header`, `Kind` + constants, `AllKinds`, `Payload` interface, `Envelope`
 - `contracts/job.go` (new) — `Job` payload

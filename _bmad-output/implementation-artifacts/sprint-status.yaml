@@ -1,6 +1,6 @@
 # generated: 2026-06-20 08:33:20
 # last_updated: 2026-06-20 08:33:20
-# project: sheldon_go
+# project: shelldon_go
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: {project-root}/_bmad-output/implementation-artifacts
@@ -31,7 +31,7 @@
 
 generated: 2026-06-20 08:33:20
 last_updated: 2026-06-20 09:00:00
-project: sheldon_go
+project: shelldon_go
 project_key: NOKEY
 tracking_system: file-system
 story_location: {project-root}/_bmad-output/implementation-artifacts

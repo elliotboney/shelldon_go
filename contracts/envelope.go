@@ -1,5 +1,5 @@
 // Package contracts defines the versioned Envelope/Job/Result types that are
-// the uniform contract over sheldon's internal bus. They are passed as Go
+// the uniform contract over shelldon's internal bus. They are passed as Go
 // structs in-process and gob-serialized only at the worker wall (M3); this
 // package proves the gob path now so that swap is a pure transport change.
 //
