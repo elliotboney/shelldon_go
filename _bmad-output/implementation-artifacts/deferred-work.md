@@ -31,3 +31,8 @@
 - **`logEvent` EventHook panic is unguarded** — a panic inside `logEvent` propagates into suture's recovery machinery rather than being caught by any Guard; currently theoretical (stdlib slog doesn't panic) but unprotected. File: `core/supervisor/supervisor.go:108`.
 - **`RemoveAndWait` error silently discarded** — a drain timeout (edge refusing to stop within 5s) produces no log and no error propagation; a stuck edge is invisible to ops during shutdown. File: `core/supervisor/supervisor.go:65`.
 - **`logEvent` drops `EventStopTimeout` and other suture events** — only `EventServicePanic` and `EventBackoff` are logged; `EventStopTimeout` in particular is operationally important (signals an edge refused to stop) but currently invisible. File: `core/supervisor/supervisor.go:109`.
+
+## Deferred from: code review of 1-5-cli-transport-adapter-end-to-end-round-trip (2026-06-21)
+
+- **Silent `hub.Publish` error paths** — `_ = d.hub.Publish(...)` (dispatch) and `_ = a.hub.Publish(...)` (cli) drop `ErrNoRoute` with no log. Harmless at M0 (routes are statically registered at startup, so `ErrNoRoute` is unreachable at runtime), but worth a `slog.Warn` once AD-17 observability lands. Files: `core/dispatch/dispatch.go:53`, `transport/cli/cli.go:60`.
+- **`readLoop` goroutine not stoppable on ctx cancellation** — blocks on `bufio.Scanner.Scan()` until stdin EOF; cannot be cancelled by the supervisor's shutdown. Intentional, documented M0 deferral — a cancelable stdin is not an M0 concern; revisit if/when needed. File: `transport/cli/cli.go:41`.

@@ -20,12 +20,16 @@ const (
 	KindJob Kind = "job"
 	// KindResult is a worker proposal returned to core.
 	KindResult Kind = "result"
+	// KindInboundMessage is a chat message from a transport adapter to core.
+	KindInboundMessage Kind = "inbound-message"
+	// KindOutboundMessage is a reply from core to a transport adapter.
+	KindOutboundMessage Kind = "outbound-message"
 )
 
 // AllKinds is the closed set of declared kinds. The required M0 round-trip test
 // is derived from this slice, so adding a Kind without a corresponding test row
 // fails the suite (AC1: every kind, not a sample).
-var AllKinds = []Kind{KindJob, KindResult}
+var AllKinds = []Kind{KindJob, KindResult, KindInboundMessage, KindOutboundMessage}
 
 // Header is the closed envelope header from AD-11. No fields may be added here
 // without a contract change.
@@ -35,7 +39,7 @@ type Header struct {
 	Kind   Kind   // discriminates the payload kind
 	Src    string // source address on the bus
 	Dst    string // destination address on the bus
-	TurnID string // fencing field for idempotent close (AD-12)
+	TurnID string // fencing field for idempotent close (AD-11)
 }
 
 // Payload is the marker interface implemented by every concrete payload. The

@@ -12,6 +12,8 @@ import "encoding/gob"
 func Register() {
 	gob.Register(Job{})
 	gob.Register(Result{})
+	gob.Register(InboundMessage{})
+	gob.Register(OutboundMessage{})
 }
 
 func init() {

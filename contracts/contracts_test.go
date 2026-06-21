@@ -36,6 +36,14 @@ func TestEnvelopeRoundTrip(t *testing.T) {
 			Header:  Header{ID: "e2", V: 1, Kind: KindResult, Src: "worker", Dst: "core", TurnID: "t1"},
 			Payload: Result{Reply: "hi", MemoryOps: []MemoryOp{{Kind: "remember"}}},
 		},
+		KindInboundMessage: {
+			Header:  Header{ID: "e3", V: 1, Kind: KindInboundMessage, Src: "cli", Dst: "core", TurnID: "t2"},
+			Payload: InboundMessage{ConvoID: "cli", Text: "hello"},
+		},
+		KindOutboundMessage: {
+			Header:  Header{ID: "e4", V: 1, Kind: KindOutboundMessage, Src: "core", Dst: "cli", TurnID: "t2"},
+			Payload: OutboundMessage{ConvoID: "cli", Text: "hello"},
+		},
 	}
 
 	for _, k := range AllKinds {
