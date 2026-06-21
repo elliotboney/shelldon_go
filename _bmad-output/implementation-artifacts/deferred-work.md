@@ -23,3 +23,11 @@
 ## Deferred from: code review of 1-3-worker-seam-interface-stub-1-in-flight-arbiter-gate (2026-06-20)
 
 - **`Submit` has no `ctx.Done()` arm** — a context cancelled before slot acquisition returns `ErrTurnInFlight` instead of `ctx.Err()`; callers can't distinguish "slot busy" from "context dead." Related to AD-11 turn fencing; deferred to the turn lifecycle story. File: `core/arbiter/arbiter.go:37-43`.
+
+## Deferred from: code review of 1-4-suture-supervisor-root-soul-survives-edge-panic (2026-06-21)
+
+- **`<-errCh` has no post-drain timeout** — after all edges are removed and supervisor context is cancelled, `<-errCh` blocks with no timeout; a suture internal bug could hang `Root.Serve` forever. File: `core/supervisor/supervisor.go:69`.
+- **Test channel receives have no timeout** — `<-flakyStarted` and `<-steady.started` are unbounded blocking receives; tests deadlock instead of fail usefully if suture delays a restart (e.g., unexpected backoff). File: `core/supervisor/supervisor_test.go:63-70`.
+- **`logEvent` EventHook panic is unguarded** — a panic inside `logEvent` propagates into suture's recovery machinery rather than being caught by any Guard; currently theoretical (stdlib slog doesn't panic) but unprotected. File: `core/supervisor/supervisor.go:108`.
+- **`RemoveAndWait` error silently discarded** — a drain timeout (edge refusing to stop within 5s) produces no log and no error propagation; a stuck edge is invisible to ops during shutdown. File: `core/supervisor/supervisor.go:65`.
+- **`logEvent` drops `EventStopTimeout` and other suture events** — only `EventServicePanic` and `EventBackoff` are logged; `EventStopTimeout` in particular is operationally important (signals an edge refused to stop) but currently invisible. File: `core/supervisor/supervisor.go:109`.

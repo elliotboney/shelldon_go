@@ -30,7 +30,7 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-20
+last_updated: 2026-06-21
 project: shelldon_go
 project_key: NOKEY
 tracking_system: file-system
@@ -41,8 +41,8 @@ development_status:
   1-1-versioned-contracts-gob-round-trip: done
   1-2-core-owned-channel-hub-point-to-point-routing: done
   1-3-worker-seam-interface-stub-1-in-flight-arbiter-gate: done
-  1-4-suture-supervisor-root-soul-survives-edge-panic: backlog
-  1-5-cli-transport-adapter-end-to-end-round-trip: backlog
+  1-4-suture-supervisor-root-soul-survives-edge-panic: done
+  1-5-cli-transport-adapter-end-to-end-round-trip: ready-for-dev
   1-6-cross-compile-atomic-write-crash-safety-on-pi-run: backlog
   epic-1-retrospective: optional
 
