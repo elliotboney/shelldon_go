@@ -1,0 +1,50 @@
+version: '3'
+
+# Build/deploy/test driver for the M0 walking skeleton (Story 1.6).
+# Cross-compile on the laptop, never on the Pi (NFR2). Override PI_HOST/PI_DIR
+# via env, e.g. `PI_HOST=raspberrypi.local task deploy`.
+
+vars:
+  PI_HOST: '{{.PI_HOST | default "gotchi"}}'
+  PI_DIR: '{{.PI_DIR | default "shelldon_go"}}'
+  # Cross-compile env for the Pi Zero 2W (Cortex-A53, arm64).
+  # Do NOT set GOARM64=v8.0,lse — the A53 lacks LSE atomics.
+  CROSS: 'CGO_ENABLED=0 GOOS=linux GOARCH=arm64'
+
+tasks:
+  build:
+    desc: Cross-compile the single static arm64 binary (AC1)
+    cmds:
+      - '{{.CROSS}} go build -ldflags="-s -w" -o dist/shelldon ./cmd/shelldon'
+
+  build:tests:
+    desc: Cross-compile the four required M0 test binaries for arm64
+    cmds:
+      - '{{.CROSS}} go test -c -o dist/contracts.test ./contracts'
+      - '{{.CROSS}} go test -c -o dist/arbiter.test ./core/arbiter'
+      - '{{.CROSS}} go test -c -o dist/memory.test ./core/memory'
+      - '{{.CROSS}} go test -c -o dist/supervisor.test ./core/supervisor'
+
+  deploy:
+    desc: Cross-compile everything and rsync to the Pi (never compile on the Pi)
+    deps: [build, build:tests]
+    # PI_HOST/PI_DIR are quoted (host in double quotes, dir in remote single
+    # quotes) so override values can't break out of the remote shell command.
+    cmds:
+      - ssh "{{.PI_HOST}}" "mkdir -p '{{.PI_DIR}}'"
+      - rsync -a dist/ "{{.PI_HOST}}:{{.PI_DIR}}/"
+
+  test:pi:
+    desc: Run the four required M0 tests ON THE PI (AC3) — no -race on the Pi
+    cmds:
+      - |
+        ssh "{{.PI_HOST}}" "cd '{{.PI_DIR}}' && \
+          ./contracts.test  -test.run TestEnvelopeRoundTrip               -test.v && \
+          ./arbiter.test    -test.run TestArbiter_AtMostOneInFlight        -test.v && \
+          ./memory.test     -test.run TestWriteAtomic_CrashSafety          -test.v && \
+          ./supervisor.test -test.run TestRoot_SoulSurvivesSingleEdgePanic -test.v"
+
+  run:pi:
+    desc: CLI round-trip ON THE PI (AC4)
+    cmds:
+      - ssh "{{.PI_HOST}}" "cd '{{.PI_DIR}}' && printf 'ping shelldon\n' | timeout -s TERM 2 ./shelldon"

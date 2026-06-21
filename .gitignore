@@ -11,3 +11,6 @@ _bmad/
 /bin/
 *.test
 *.out
+
+# Build artifacts (cross-compiled binaries)
+/dist/
