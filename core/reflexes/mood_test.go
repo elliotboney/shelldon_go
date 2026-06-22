@@ -5,8 +5,6 @@ import (
 	"math"
 	"path/filepath"
 	"testing"
-	"testing/synctest"
-	"time"
 
 	"github.com/elliotboney/shelldon_go/contracts"
 	"github.com/elliotboney/shelldon_go/core/state"
@@ -14,72 +12,57 @@ import (
 
 const epsilon = 1e-9
 
-// TestMoodDrift_AccumulatesAndCheckpoints is AC1+AC2: over a simulated week the
-// valence drifts by step×cadences and the drift is persisted to the checkpoint.
+// TestMoodDrift_AccumulatesAndCheckpoints is AC2 (LLM-free in-core drift): N Run
+// ticks move valence by step×N and the drift is persisted to the checkpoint. The
+// "fires N times over a week" cadence assertion now lives in the scheduler test;
+// this verifies the per-tick work the scheduler drives.
 func TestMoodDrift_AccumulatesAndCheckpoints(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "state.json")
-		store := state.New(state.Personality{Mood: 0, Energy: 1, LastInteraction: time.Now()}, path)
-		md := NewMoodDrift(store)
+	path := filepath.Join(t.TempDir(), "state.json")
+	store := state.New(state.Personality{Mood: 0, Energy: 1}, path)
+	md := NewMoodDrift(store)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan error, 1)
-		go func() { done <- md.Serve(ctx) }()
+	const ticks = 28 // a simulated week at four drifts per day
+	want := 0.0
+	for i := 0; i < ticks; i++ {
+		md.Run(context.Background())
+		want = clamp(want+moodDriftStep, moodValenceMin, moodValenceMax)
+	}
 
-		sleepDur := 7*24*time.Hour + time.Hour
-		time.Sleep(sleepDur)
-		synctest.Wait()
-		cancel()
-		<-done
-
-		ticks := int(sleepDur / moodDriftInterval)
-		want := 0.0
-		for i := 0; i < ticks; i++ {
-			want = clamp(want+moodDriftStep, moodValenceMin, moodValenceMax)
-		}
-
-		if got := store.Snapshot().Mood; math.Abs(got-want) > epsilon {
-			t.Fatalf("RAM mood = %v, want %v (step %v × %d cadences)", got, want, moodDriftStep, ticks)
-		}
-		// AC2 before/after: the mood must have actually moved.
-		if math.Abs(store.Snapshot().Mood) < epsilon {
-			t.Fatal("mood did not drift over a simulated week")
-		}
-		// AC1: the drift is persisted to the checkpoint, not just RAM.
-		if got := state.Load(path).Mood; math.Abs(got-want) > epsilon {
-			t.Fatalf("checkpointed mood = %v, want %v", got, want)
-		}
-	})
+	if got := store.Snapshot().Mood; math.Abs(got-want) > epsilon {
+		t.Fatalf("RAM mood = %v, want %v (step %v × %d ticks)", got, want, moodDriftStep, ticks)
+	}
+	// The mood must have actually moved.
+	if math.Abs(store.Snapshot().Mood) < epsilon {
+		t.Fatal("mood did not drift over N ticks")
+	}
+	// The drift is persisted to the checkpoint, not just RAM.
+	if got := state.Load(path).Mood; math.Abs(got-want) > epsilon {
+		t.Fatalf("checkpointed mood = %v, want %v", got, want)
+	}
 }
 
 // TestMoodDrift_ClampsValence proves valence never leaves [min, max] no matter how
-// long it drifts.
+// many ticks it drifts.
 func TestMoodDrift_ClampsValence(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "state.json")
-		// Start at the bound OPPOSITE the drift direction so the drift travels the
-		// full range and slams into the far clamp (a negative step must start at
-		// max to descend into the min clamp).
-		start := moodValenceMin
-		if moodDriftStep < 0 {
-			start = moodValenceMax
-		}
-		store := state.New(state.Personality{Mood: start, LastInteraction: time.Now()}, path)
-		md := NewMoodDrift(store)
+	path := filepath.Join(t.TempDir(), "state.json")
+	// Start at the bound OPPOSITE the drift direction so the drift travels the
+	// full range and slams into the far clamp (a negative step must start at
+	// max to descend into the min clamp).
+	start := moodValenceMin
+	if moodDriftStep < 0 {
+		start = moodValenceMax
+	}
+	store := state.New(state.Personality{Mood: start}, path)
+	md := NewMoodDrift(store)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan error, 1)
-		go func() { done <- md.Serve(ctx) }()
-		time.Sleep(30 * 24 * time.Hour) // a month of drift
-		synctest.Wait()
-		cancel()
-		<-done
+	for i := 0; i < 1000; i++ { // far more ticks than the range needs
+		md.Run(context.Background())
+	}
 
-		got := store.Snapshot().Mood
-		if got < moodValenceMin || got > moodValenceMax {
-			t.Fatalf("mood %v escaped clamp [%v, %v]", got, moodValenceMin, moodValenceMax)
-		}
-	})
+	got := store.Snapshot().Mood
+	if got < moodValenceMin || got > moodValenceMax {
+		t.Fatalf("mood %v escaped clamp [%v, %v]", got, moodValenceMin, moodValenceMax)
+	}
 }
 
 // TestExpressionFor maps valence bands to the right face expression.

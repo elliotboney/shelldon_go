@@ -3,9 +3,10 @@
 // snapshots through the compositor. They are the pet's offline aliveness — it
 // keeps moving with the network down (NFR13).
 //
-// Each reflex runs its own supervised Serve(ctx) loop for now; the reflex-tier
-// scheduler (Story 2.5) will later own these cadences as registered jobs with no
-// rewrite of the loop shape.
+// Each reflex exposes a job surface — NextDelay() for its cadence and Run(ctx)
+// for one tick of work — that the reflex-tier scheduler (Story 2.5, AD-13) owns
+// as a registered job. The reflexes package stays a leaf: main composes the
+// scheduler.Job values from these methods, so reflexes does not import scheduler.
 package reflexes
 
 import (
@@ -45,8 +46,9 @@ func NewBlink(comp *compositor.Compositor, store *state.Store, rng *rand.Rand) *
 	return &Blink{comp: comp, store: store, rng: rng}
 }
 
-// nextDelay is the jittered gap until the next blink: [base, base+jitter).
-func (b *Blink) nextDelay() time.Duration {
+// NextDelay is the jittered gap until the next blink: [base, base+jitter). It is
+// the blink job's cadence for the reflex-tier scheduler (Story 2.5, AD-13).
+func (b *Blink) NextDelay() time.Duration {
 	return blinkBaseInterval + time.Duration(b.rng.Int64N(int64(blinkJitter)))
 }
 
@@ -55,22 +57,12 @@ func (b *Blink) idle() bool {
 	return time.Since(b.store.Snapshot().LastInteraction) >= blinkIdleThreshold
 }
 
-// Serve runs the blink loop until ctx is cancelled. It waits a jittered delay,
-// then blinks if idle. It is wrapped by supervisor.Guard (AD-5) and is shaped so
-// the reflex-tier scheduler (Story 2.5) can own its cadence with no rewrite.
-func (b *Blink) Serve(ctx context.Context) error {
-	timer := time.NewTimer(b.nextDelay())
-	defer timer.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-			if b.idle() {
-				b.blinkOnce(ctx)
-			}
-			timer.Reset(b.nextDelay())
-		}
+// Run is the blink job's work for one cadence: blink if idle. The scheduler owns
+// the loop (one NextDelay→Run tick per cadence); the idle gate keeps the pet
+// attentive during an active exchange.
+func (b *Blink) Run(ctx context.Context) {
+	if b.idle() {
+		b.blinkOnce(ctx)
 	}
 }
 

@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of 2-5-reflex-tier-scheduler (2026-06-22)
+
+- **`Serve` with zero registered jobs returns `nil` immediately** — `wg.Wait()` on an empty slice returns at once; `ctx.Err()` is nil if context isn't cancelled; supervisor sees a clean exit and doesn't restart. Not reachable with current main.go usage. File: `core/scheduler/scheduler.go`.
+- **`NextDelay` returning 0 causes a busy-loop** — `time.NewTimer(0)` and `timer.Reset(0)` fire immediately; the job goroutine spins at 100% CPU with no yield. Not reachable with current blink/mood implementations. File: `core/scheduler/scheduler.go`.
+- **Slow `Run` + short cadence → burst catch-up** — timer reset happens after `fire()` returns; if `Run` outlasts `NextDelay`, the already-expired channel item fires the next tick instantly. Not a concern at M1 cadences (blink ≥4s, mood ≥6h). File: `core/scheduler/scheduler.go`.
+
 ## Deferred from: code review of 2-4-mood-drift-reflex (2026-06-21)
 
 - **`MoodDrift.Serve` has no shutdown flush** — a crash between `SetMood` and `Checkpoint()` in the same tick leaves RAM and disk diverged until the next 60s state-checkpoint fence. The periodic checkpoint is the fallback, but it's not a guaranteed AC-16 durability window per tick. File: `core/reflexes/mood.go`.

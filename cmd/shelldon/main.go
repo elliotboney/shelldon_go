@@ -1,8 +1,9 @@
 // Command shelldon is the single supervised process: it wires the bus, arbiter,
 // worker stub, personality-state checkpoint, core dispatch loop, CLI transport
-// adapter, terminal face renderer, and the blink + mood-drift reflexes, then runs
-// them as supervised edges under the core suture root until a shutdown signal
-// arrives, draining edges in reverse start order (AD-5).
+// adapter, terminal face renderer, and the reflex-tier scheduler (running the
+// blink + mood-drift reflexes as named jobs), then runs them as supervised edges
+// under the core suture root until a shutdown signal arrives, draining edges in
+// reverse start order (AD-5).
 package main
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/elliotboney/shelldon_go/core/compositor"
 	"github.com/elliotboney/shelldon_go/core/dispatch"
 	"github.com/elliotboney/shelldon_go/core/reflexes"
+	"github.com/elliotboney/shelldon_go/core/scheduler"
 	"github.com/elliotboney/shelldon_go/core/state"
 	"github.com/elliotboney/shelldon_go/core/supervisor"
 	"github.com/elliotboney/shelldon_go/display/terminal"
@@ -75,6 +77,13 @@ func main() {
 	blink := reflexes.NewBlink(comp, store, rng)
 	mood := reflexes.NewMoodDrift(store)
 
+	// Reflex-tier scheduler (AD-13): one supervised edge runs both reflexes as
+	// named jobs on their own cadences, in-core with no LLM. The turn tier
+	// (Story 3.5) will register more jobs with no change to the scheduler loop.
+	sched := scheduler.New()
+	sched.Register(scheduler.Job{Name: "blink", NextDelay: blink.NextDelay, Run: blink.Run})
+	sched.Register(scheduler.Job{Name: "mood-drift", NextDelay: mood.NextDelay, Run: mood.Run})
+
 	root := supervisor.New("shelldon")
 	// Start order: state-checkpoint first, then dispatch, then CLI → reverse drain
 	// stops CLI, then dispatch, then state-checkpoint last so its shutdown flush
@@ -83,8 +92,9 @@ func main() {
 	root.Add(supervisor.Guard("core-dispatch", disp.Serve))
 	root.Add(supervisor.Guard("cli-transport", adapter.Serve))
 	root.Add(supervisor.Guard("display-terminal", renderer.Serve))
-	root.Add(supervisor.Guard("reflex-blink", blink.Serve))
-	root.Add(supervisor.Guard("reflex-mood", mood.Serve))
+	// Added last so reverse-drain stops it first: the pet stops producing reflex
+	// frames before the renderer drains.
+	root.Add(supervisor.Guard("reflex-scheduler", sched.Serve))
 
 	// Show an initial face on boot. The mood-driven expression is Story 2.4; the
 	// buffered display channel absorbs this push until the renderer starts.

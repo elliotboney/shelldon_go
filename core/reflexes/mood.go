@@ -38,24 +38,18 @@ func NewMoodDrift(store *state.Store) *MoodDrift {
 	return &MoodDrift{store: store}
 }
 
-// Serve drifts the mood every moodDriftInterval until ctx is cancelled. Each tick
-// moves valence by moodDriftStep (clamped) and checkpoints the drift (AD-16). It
-// is wrapped by supervisor.Guard (AD-5) and shaped so the reflex-tier scheduler
-// (Story 2.5) can own its cadence with no rewrite.
-func (m *MoodDrift) Serve(ctx context.Context) error {
-	ticker := time.NewTicker(moodDriftInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			next := clamp(m.store.Snapshot().Mood+moodDriftStep, moodValenceMin, moodValenceMax)
-			m.store.SetMood(next)
-			if err := m.store.Checkpoint(); err != nil {
-				slog.Error("mood-drift checkpoint failed", "err", err)
-			}
-		}
+// NextDelay is the fixed mood-drift cadence. It is the mood job's cadence for the
+// reflex-tier scheduler (Story 2.5, AD-13).
+func (m *MoodDrift) NextDelay() time.Duration { return moodDriftInterval }
+
+// Run is the mood-drift job's work for one cadence: move valence by moodDriftStep
+// (clamped) and checkpoint the drift (AD-16). The scheduler owns the loop. The
+// ctx param is unused — kept to satisfy the scheduler.Job.Run signature.
+func (m *MoodDrift) Run(_ context.Context) {
+	next := clamp(m.store.Snapshot().Mood+moodDriftStep, moodValenceMin, moodValenceMax)
+	m.store.SetMood(next)
+	if err := m.store.Checkpoint(); err != nil {
+		slog.Error("mood-drift checkpoint failed", "err", err)
 	}
 }
 

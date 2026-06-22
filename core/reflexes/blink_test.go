@@ -23,7 +23,7 @@ func TestNextDelay_Jittered(t *testing.T) {
 
 	seen := make(map[time.Duration]int)
 	for i := 0; i < 16; i++ {
-		d := b.nextDelay()
+		d := b.NextDelay()
 		if d < blinkBaseInterval || d >= blinkBaseInterval+blinkJitter {
 			t.Fatalf("delay %v out of range [%v, %v)", d, blinkBaseInterval, blinkBaseInterval+blinkJitter)
 		}
@@ -124,27 +124,22 @@ func TestBlinkOnce_RendersMoodExpression(t *testing.T) {
 	}
 }
 
-// TestServe_BlinksWhenIdle is AC1: with no interaction past the idle threshold,
-// the reflex pushes a blink (eyes-closed) frame and reopens the eyes.
-func TestServe_BlinksWhenIdle(t *testing.T) {
+// TestRun_BlinksWhenIdle is AC1: one Run tick while idle pushes a blink
+// (eyes-closed) frame and reopens the eyes. The scheduler owns the cadence now;
+// this proves the per-tick work the scheduler drives.
+func TestRun_BlinksWhenIdle(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		hub := bus.New()
 		ch := make(chan contracts.Envelope, 64)
 		if err := hub.Register(contracts.KindFaceSnapshot, ch); err != nil {
 			t.Fatalf("register: %v", err)
 		}
-		store := state.New(state.Personality{LastInteraction: time.Now()}, filepath.Join(t.TempDir(), "state.json"))
+		// Idle: last interaction is past the threshold.
+		store := state.New(state.Personality{LastInteraction: time.Now().Add(-blinkIdleThreshold - time.Second)}, filepath.Join(t.TempDir(), "state.json"))
 		b := NewBlink(compositor.New(hub), store, seededRNG())
 
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan error, 1)
-		go func() { done <- b.Serve(ctx) }()
-
-		// Past the idle threshold plus several jittered blink intervals.
-		time.Sleep(blinkIdleThreshold + 4*(blinkBaseInterval+blinkJitter))
+		b.Run(context.Background())
 		synctest.Wait()
-		cancel()
-		<-done
 
 		var closed, open bool
 		draining := true
@@ -166,6 +161,30 @@ func TestServe_BlinksWhenIdle(t *testing.T) {
 		}
 		if !open {
 			t.Fatal("eyes never reopened after a blink")
+		}
+	})
+}
+
+// TestRun_NoBlinkWhenActive proves the idle gate inside Run: during an active
+// exchange (recent interaction) a Run tick pushes no frame — the pet stays
+// attentive, not blinking.
+func TestRun_NoBlinkWhenActive(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		hub := bus.New()
+		ch := make(chan contracts.Envelope, 4)
+		if err := hub.Register(contracts.KindFaceSnapshot, ch); err != nil {
+			t.Fatalf("register: %v", err)
+		}
+		store := state.New(state.Personality{LastInteraction: time.Now()}, filepath.Join(t.TempDir(), "state.json"))
+		b := NewBlink(compositor.New(hub), store, seededRNG())
+
+		b.Run(context.Background())
+		synctest.Wait()
+
+		select {
+		case <-ch:
+			t.Fatal("pushed a blink frame during an active exchange — idle gate failed")
+		default:
 		}
 	})
 }

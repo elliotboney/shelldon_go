@@ -30,7 +30,7 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-21 # code-review story 2.2
+last_updated: 2026-06-21 # dev story 2.5
 project: shelldon_go
 project_key: NOKEY
 tracking_system: file-system
@@ -51,7 +51,7 @@ development_status:
   2-2-region-compositor-contract-terminal-ansi-face: done
   2-3-blink-idle-reflexes: done
   2-4-mood-drift-reflex: done
-  2-5-reflex-tier-scheduler: backlog
+  2-5-reflex-tier-scheduler: review
   2-6-offline-acknowledgement-brainless-alive: backlog
   epic-2-retrospective: optional
 
