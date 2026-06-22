@@ -30,7 +30,7 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-22 # dev story 3.1
+last_updated: 2026-06-22 # dev story 3.2
 
 action_items:
   - epic: 2
@@ -75,7 +75,7 @@ development_status:
 
   epic-3: in-progress
   3-1-capability-broker-credential-boundary: done
-  3-2-provider-chain-with-retry-fallback: backlog
+  3-2-provider-chain-with-retry-fallback: done
   3-3-real-worker-behind-the-seam: backlog
   3-4-telegram-adapter-second-transport: backlog
   3-5-turn-tier-scheduler-budget-battery-gate: backlog

@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 3-2-provider-chain-with-retry-fallback (2026-06-22)
+
+- **`lastErr` is a `retrypolicy.ExceededError` wrapper, not raw provider error** — `broker/broker.go:~112` — when retries exhaust, failsafe-go wraps the last error in `retrypolicy.ExceededError`. Callers using `errors.As` to extract a specific error type must unwrap through that. Not a current bug (ErrAllProvidersFailed chain is correct), but misleading to future maintainers. Add `.ReturnLastFailure()` to the builder or document the wrapping.
+- **Max wall-clock per chain unbounded without caller deadline** — `broker/broker.go:Complete` — `perProviderTimeout` (30s) covers the full retry sequence per provider; an N-provider chain can block 30s×N before returning. No overall `Complete` deadline beyond caller context. Acceptable for current single-provider chain; revisit when chain grows (Story 3.4+).
+- **`baseURL` trailing slash not sanitized** — `broker/broker.go:New()` — if `SHELLDON_LLM_BASE_URL` is set with a trailing slash, the go-openai SDK may produce a double-slash path (`//chat/completions`). Default constant is fine; sanitize via `strings.TrimRight(baseURL, "/")` before passing to `NewOpenAI`.
+- **Empty `Messages` or empty `model` not validated at broker boundary** — `broker/broker.go:Complete` — a `Request{Messages: nil}` or empty model reaches the API and gets a 400 (retried 3×). Input validation at the broker entry point would give a faster, cheaper error. Defer until worker (Story 3.3) establishes what guarantees it provides on inputs.
+
 ## Deferred from: code review of 3-1-capability-broker-credential-boundary (2026-06-22)
 
 - **`WalkDir("..")` is cwd-dependent in imports_test** — `broker/imports_test.go:31` — walk root is the package dir's parent, which is correct for `go test` but undocumented; scanned-count guard (≥10) mitigates complete miss. Pre-existing project pattern (dispatch/scheduler same). Accept for now; revisit if tests ever run outside standard `go test`.
