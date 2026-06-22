@@ -1,8 +1,8 @@
 // Command shelldon is the single supervised process: it wires the bus, arbiter,
 // worker stub, personality-state checkpoint, core dispatch loop, CLI transport
-// adapter, terminal face renderer, and blink reflex, then runs them as supervised
-// edges under the core suture root until a shutdown signal arrives, draining edges
-// in reverse start order (AD-5).
+// adapter, terminal face renderer, and the blink + mood-drift reflexes, then runs
+// them as supervised edges under the core suture root until a shutdown signal
+// arrives, draining edges in reverse start order (AD-5).
 package main
 
 import (
@@ -73,6 +73,7 @@ func main() {
 	renderer := terminal.New(display, os.Stdout)
 	rng := rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0))
 	blink := reflexes.NewBlink(comp, store, rng)
+	mood := reflexes.NewMoodDrift(store)
 
 	root := supervisor.New("shelldon")
 	// Start order: state-checkpoint first, then dispatch, then CLI → reverse drain
@@ -83,6 +84,7 @@ func main() {
 	root.Add(supervisor.Guard("cli-transport", adapter.Serve))
 	root.Add(supervisor.Guard("display-terminal", renderer.Serve))
 	root.Add(supervisor.Guard("reflex-blink", blink.Serve))
+	root.Add(supervisor.Guard("reflex-mood", mood.Serve))
 
 	// Show an initial face on boot. The mood-driven expression is Story 2.4; the
 	// buffered display channel absorbs this push until the renderer starts.

@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of 2-4-mood-drift-reflex (2026-06-21)
+
+- **`MoodDrift.Serve` has no shutdown flush** — a crash between `SetMood` and `Checkpoint()` in the same tick leaves RAM and disk diverged until the next 60s state-checkpoint fence. The periodic checkpoint is the fallback, but it's not a guaranteed AC-16 durability window per tick. File: `core/reflexes/mood.go`.
+
 ## Deferred from: code review of 2-3-blink-idle-reflexes (2026-06-21)
 
 - **`hub.Publish` blocks if display channel full/renderer stopped** — `PushFace` has no context-aware escape; `blinkOnce` can hang if the renderer is stopped or restarting. Acknowledged 2.2 architectural constraint; blink respects ≤2 pushes/cycle. Files: `core/reflexes/blink.go`.

@@ -89,6 +89,41 @@ func TestBlinkOnce_ReopensEyesEvenWhenCancelled(t *testing.T) {
 	}
 }
 
+// TestBlinkOnce_RendersMoodExpression proves the blink renders the current
+// mood-derived expression (the Story 2.4 Mood→Expression wiring), not a hardcoded
+// neutral face.
+func TestBlinkOnce_RendersMoodExpression(t *testing.T) {
+	hub := bus.New()
+	ch := make(chan contracts.Envelope, 4)
+	if err := hub.Register(contracts.KindFaceSnapshot, ch); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	store := state.New(state.Personality{Mood: 1.0}, filepath.Join(t.TempDir(), "state.json")) // happy
+	b := NewBlink(compositor.New(hub), store, seededRNG())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	b.blinkOnce(ctx)
+
+	var frames int
+	draining := true
+	for draining {
+		select {
+		case env := <-ch:
+			frames++
+			snap := env.Payload.(contracts.RegionSnapshot)
+			if snap.Face.Expression != contracts.ExpressionHappy {
+				t.Fatalf("blink rendered %q, want happy from mood 1.0", snap.Face.Expression)
+			}
+		default:
+			draining = false
+		}
+	}
+	if frames == 0 {
+		t.Fatal("blink pushed no frames — mood expression never asserted")
+	}
+}
+
 // TestServe_BlinksWhenIdle is AC1: with no interaction past the idle threshold,
 // the reflex pushes a blink (eyes-closed) frame and reopens the eyes.
 func TestServe_BlinksWhenIdle(t *testing.T) {

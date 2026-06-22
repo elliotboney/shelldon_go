@@ -75,11 +75,12 @@ func (b *Blink) Serve(ctx context.Context) error {
 }
 
 // blinkOnce pushes an eyes-closed frame, holds it for blinkDuration, then reopens
-// the eyes. Expression is neutral at M1; Story 2.4 makes the blink read the
-// mood-derived expression (the local face var is the seam). A push error is
-// logged, not fatal — the reflex keeps running.
+// the eyes. Both frames carry the current mood-derived expression (expressionFor),
+// so blinking renders the drifted mood. A push error is logged, not fatal — the
+// reflex keeps running.
 func (b *Blink) blinkOnce(ctx context.Context) {
-	closed := contracts.Face{Expression: contracts.ExpressionNeutral, EyesOpen: false}
+	expr := expressionFor(b.store.Snapshot().Mood) // render the current mood (Story 2.4)
+	closed := contracts.Face{Expression: expr, EyesOpen: false}
 	if err := b.comp.PushFace(closed); err != nil {
 		slog.Error("blink push (eyes closed) failed", "err", err)
 		return
@@ -95,7 +96,7 @@ func (b *Blink) blinkOnce(ctx context.Context) {
 	// Always reopen the eyes — even on cancellation — so the face is never left
 	// frozen mid-blink (eyes closed) on shutdown or a supervisor restart. The
 	// reflex edge drains before the renderer, so this push still reaches it.
-	open := contracts.Face{Expression: contracts.ExpressionNeutral, EyesOpen: true}
+	open := contracts.Face{Expression: expr, EyesOpen: true}
 	if err := b.comp.PushFace(open); err != nil {
 		slog.Error("blink push (eyes open) failed", "err", err)
 	}
