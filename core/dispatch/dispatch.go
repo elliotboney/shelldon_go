@@ -10,6 +10,7 @@ package dispatch
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/elliotboney/shelldon_go/contracts"
 	"github.com/elliotboney/shelldon_go/core/arbiter"
@@ -17,19 +18,44 @@ import (
 	"github.com/elliotboney/shelldon_go/core/state"
 )
 
+// Recorder is the narrow write interface that dispatch uses to persist each
+// conversation turn. *memory.Store satisfies it. Defined here (consumer-defined
+// interface, AD-6) so dispatch.go does not import core/memory.
+type Recorder interface {
+	Append(ctx context.Context, convoID, role, content string) (int64, error)
+}
+
+// Option is a functional option for Dispatcher, used to extend New without
+// breaking existing callers.
+type Option func(*Dispatcher)
+
+// WithRecorder wires an optional memory recorder into the dispatcher. When set,
+// each completed turn is persisted (owner message then pet reply) after the reply
+// is published. Errors are ignored — recording is best-effort and must not stall
+// the loop.
+func WithRecorder(r Recorder) Option {
+	return func(d *Dispatcher) { d.recorder = r }
+}
+
 // Dispatcher routes inbound messages to turns and emits the replies.
 type Dispatcher struct {
-	hub     *bus.Hub
-	arb     *arbiter.Arbiter
-	inbound <-chan contracts.Envelope
-	store   *state.Store
+	hub      *bus.Hub
+	arb      *arbiter.Arbiter
+	inbound  <-chan contracts.Envelope
+	store    *state.Store
+	recorder Recorder // nil when unset; best-effort memory writer (AD-6)
 }
 
 // New returns a Dispatcher consuming inbound from the given channel and
 // publishing outbound replies through hub. store is stamped on each inbound
 // message so the idle reflex (Story 2.3) knows when the owner last interacted.
-func New(hub *bus.Hub, arb *arbiter.Arbiter, inbound <-chan contracts.Envelope, store *state.Store) *Dispatcher {
-	return &Dispatcher{hub: hub, arb: arb, inbound: inbound, store: store}
+// Existing callers that pass no opts continue to work unchanged.
+func New(hub *bus.Hub, arb *arbiter.Arbiter, inbound <-chan contracts.Envelope, store *state.Store, opts ...Option) *Dispatcher {
+	d := &Dispatcher{hub: hub, arb: arb, inbound: inbound, store: store}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
 }
 
 // reflexAck is the canned, in-core acknowledgement published when the brain
@@ -59,13 +85,33 @@ func (d *Dispatcher) Serve(ctx context.Context) error {
 			}
 			d.store.Touch() // reset idleness so ambient blinking pauses (Story 2.3)
 			res, err := d.arb.Submit(ctx, contracts.Job{Input: msg.Text, ConvoID: msg.ConvoID})
+
+			var reply string
 			switch {
 			case err == nil:
-				d.publishReply(ctx, msg.ConvoID, res.Reply)
+				reply = res.Reply
+				d.publishReply(ctx, msg.ConvoID, reply)
 			case ctx.Err() != nil:
-				return ctx.Err() // shutdown, not a brain failure — do not ack
+				return ctx.Err() // shutdown, not a brain failure — do not ack or record
 			default:
-				d.publishReply(ctx, msg.ConvoID, reflexAck) // busy / timeout / brain absent: stay alive
+				reply = reflexAck
+				d.publishReply(ctx, msg.ConvoID, reply) // busy / timeout / brain absent: stay alive
+			}
+
+			// Record the turn after publishing so the next turn's recent window
+			// includes it. Best-effort: a record failure is logged (AD-17) but never
+			// stalls the loop (AD-6). The reflex ack ("…") is NOT recorded — it would
+			// pollute the recent window the next prompt reads; only a real worker
+			// reply (err == nil) is durable conversation history.
+			if d.recorder != nil {
+				if _, aerr := d.recorder.Append(ctx, msg.ConvoID, "owner", msg.Text); aerr != nil {
+					slog.Warn("dispatch: record owner message failed", "convo_id", msg.ConvoID, "err", aerr)
+				}
+				if err == nil {
+					if _, aerr := d.recorder.Append(ctx, msg.ConvoID, "pet", reply); aerr != nil {
+						slog.Warn("dispatch: record reply failed", "convo_id", msg.ConvoID, "err", aerr)
+					}
+				}
 			}
 		}
 	}

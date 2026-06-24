@@ -26,6 +26,7 @@ import (
 	"github.com/elliotboney/shelldon_go/core/bus"
 	"github.com/elliotboney/shelldon_go/core/compositor"
 	"github.com/elliotboney/shelldon_go/core/dispatch"
+	"github.com/elliotboney/shelldon_go/core/memory"
 	"github.com/elliotboney/shelldon_go/core/proactive"
 	"github.com/elliotboney/shelldon_go/core/reflexes"
 	"github.com/elliotboney/shelldon_go/core/scheduler"
@@ -50,10 +51,9 @@ func main() {
 	// The broker is the sole credential holder + model egress (AD-9); construct it
 	// once and back the real worker with it. New() logs credential presence/absence
 	// (AD-17); a keyless broker returns ErrAllProvidersFailed at call time, which
-	// the arbiter degrades to a reflex ack (AD-8) — the pet runs offline.
+	// the arbiter degrades to a reflex ack (AD-8) — the pet runs offline. The worker
+	// is constructed below, once the memory layers it reads from exist.
 	b := broker.New()
-	w := monolith.New(b)
-	arb := arbiter.New(w, turnTimeout)
 
 	// Personality-state: restore from the RAM checkpoint, or defaults on first
 	// boot (AD-16). The checkpoint lives beside, not inside, the Epic 4 durable
@@ -71,6 +71,29 @@ func main() {
 	statePath := filepath.Join(shelldonDir, "state.json")
 	store := state.New(state.Load(statePath), statePath)
 
+	// Durable memory (AD-7): the sqlite conversation store + the curated markdown
+	// tree, both under ~/.shelldon. The worker reads them read-only to ground its
+	// prompts (AD-6/Story 4.4); core (dispatch) records each turn into the store.
+	mem, err := memory.Open(filepath.Join(shelldonDir, "history.db"))
+	if err != nil {
+		slog.Error("open memory store", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = mem.Close() }()
+	curated, err := memory.OpenCurated(filepath.Join(shelldonDir, "memory"))
+	if err != nil {
+		slog.Error("open curated memory", "err", err)
+		os.Exit(1)
+	}
+	const recentWindowN = 10 // recent-conversation window injected into each prompt (tunable)
+	memCtx := memory.NewContext(mem, curated, recentWindowN)
+
+	// The Monolith+ worker over the broker, memory-augmented (Story 4.4): it
+	// assembles DIRECTIVE + about + recent window into each prompt (AD-7) through the
+	// read-only context seam, then proposes a reply. The arbiter bounds the turn.
+	w := monolith.New(b, monolith.WithContextSource(memCtx))
+	arb := arbiter.New(w, turnTimeout)
+
 	inbound := make(chan contracts.Envelope, 16)
 	outbound := make(chan contracts.Envelope, 16)
 	if err := hub.Register(contracts.KindInboundMessage, inbound); err != nil {
@@ -87,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	disp := dispatch.New(hub, arb, inbound, store)
+	disp := dispatch.New(hub, arb, inbound, store, dispatch.WithRecorder(mem))
 
 	// Transport selection (AD-12): exactly one chat adapter is wired. The bus is
 	// point-to-point, so only the selected adapter registers on the outbound route.

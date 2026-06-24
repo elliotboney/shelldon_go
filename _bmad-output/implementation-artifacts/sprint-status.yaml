@@ -30,7 +30,7 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-24 # code review 4.3 → done
+last_updated: 2026-06-24 # code review 4.4 → done
 
 action_items:
   - epic: 2
@@ -102,7 +102,8 @@ development_status:
   4-1-sqlite-conversation-store: done
   4-2-learnings-table-hot-path-capture-learning: done
   4-3-curated-markdown-tree-directive-md: done
-  4-4-dream-cycle-non-sensitive: backlog
+  4-4-memory-augmented-prompts: done
+  4-5-dream-cycle-non-sensitive: backlog
   epic-4-retrospective: optional
 
   epic-5: backlog

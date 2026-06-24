@@ -156,6 +156,16 @@
 - **`run:pi` task has no output assertion** — `printf "ping shelldon\n" | timeout -s TERM 2 ./shelldon` exits 0 on clean SIGTERM regardless of whether output was echoed; a hung or silent shelldon produces a false-green result. Dev-tool manual verification task — visual output is the check. Consider adding `| grep -q "ping shelldon"` for a lightweight CI-safe variant. File: `Taskfile.yml:run:pi`.
 - **`timeout -s TERM 2` in `run:pi` sends SIGTERM only** — if shelldon ignores or delays SIGTERM, the process survives on the Pi indefinitely; the next `run:pi` may fail or behave unexpectedly. GNU `timeout --kill-after=1s 2s` adds a SIGKILL safety net. Low-severity dev-tool concern. File: `Taskfile.yml:run:pi`.
 
+## Deferred from: code review of 4-4-memory-augmented-prompts.md (2026-06-24)
+
+- **Empty `convoID` silently creates orphaned records** — `core/dispatch/dispatch.go`, `core/memory/store.go` — no guard against `msg.ConvoID == ""`; an empty-ID record would be stored but never retrieved by a valid conversation. **(Deferred — pre-existing; transports always set ConvoID.)**
+- **Last-turn recording silently drops on ctx cancel at shutdown** — `core/dispatch/dispatch.go` — the recorder block uses the same `ctx` as the loop; a cancellation between `publishReply` and `Append` silently loses the final turn. **(Deferred — minor best-effort edge, by design.)**
+
+### Resolved in post-review fixes (2026-06-24)
+
+- ✅ **Best-effort error-swallowing now logged (AD-17)** — the three swallow points now emit `slog.Warn` instead of discarding silently: curated read failures in `PromptContext` (`core/memory/context.go`), a `PromptContext` failure in the worker (`worker/monolith/monolith.go` — replies without memory + logs), and recorder `Append` failures in dispatch (`core/dispatch/dispatch.go`). Clears the recurring AD-17 observability gap at these points (turns still never fail on a memory error — best-effort preserved).
+- ✅ **`reflexAck` no longer recorded as a `"pet"` reply** — dispatch records the owner message always but records the reply only on the real-reply path (`err == nil`); the `"…"` ack is not appended, so it can't pollute the recent window the next prompt reads. Test: `TestServe_DoesNotRecordReflexAck`.
+
 ## Deferred from: code review of 4-3-curated-markdown-tree-directive-md (2026-06-24)
 
 - **`WriteFile` with relPath naming an existing directory (e.g. `"facts"`) produces a confusing `EISDIR` from renameio rather than a clear guard** — pre-existing defensive-coding gap; spec does not require this guard; the bot never writes bare directory names in practice. **(Deferred — impossible scenario, not in spec.)** File: `core/memory/curated.go`.
