@@ -155,3 +155,13 @@
 - **`WriteAtomic` perm argument subject to umask on first write** — `renameio.WriteFile` passes `perm` to the underlying temp-file `Create`; effective mode is `perm & ^umask`. A caller expecting exact `0o600` on a system with `umask=0177` gets `0o400`. No M0 caller exists; Epic 4 should document this or use `WithStaticPermissions`/`IgnoreUmask` when file ownership matters. File: `core/memory/atomic.go`.
 - **`run:pi` task has no output assertion** — `printf "ping shelldon\n" | timeout -s TERM 2 ./shelldon` exits 0 on clean SIGTERM regardless of whether output was echoed; a hung or silent shelldon produces a false-green result. Dev-tool manual verification task — visual output is the check. Consider adding `| grep -q "ping shelldon"` for a lightweight CI-safe variant. File: `Taskfile.yml:run:pi`.
 - **`timeout -s TERM 2` in `run:pi` sends SIGTERM only** — if shelldon ignores or delays SIGTERM, the process survives on the Pi indefinitely; the next `run:pi` may fail or behave unexpectedly. GNU `timeout --kill-after=1s 2s` adds a SIGKILL safety net. Low-severity dev-tool concern. File: `Taskfile.yml:run:pi`.
+
+## Deferred from: code review of 4-3-curated-markdown-tree-directive-md (2026-06-24)
+
+- **`WriteFile` with relPath naming an existing directory (e.g. `"facts"`) produces a confusing `EISDIR` from renameio rather than a clear guard** — pre-existing defensive-coding gap; spec does not require this guard; the bot never writes bare directory names in practice. **(Deferred — impossible scenario, not in spec.)** File: `core/memory/curated.go`.
+- **Dangling symlink at `about.md`/`DIRECTIVE.md` silently returns `"", nil`** — `errors.Is(err, os.ErrNotExist)` matches both "file not found" and dangling symlinks; owner-controlled filesystem on Pi makes this very unlikely; not in spec. **(Deferred — owner-controlled FS, not in spec.)** File: `core/memory/curated.go`.
+
+### Resolved in post-review fixes (2026-06-24)
+
+- ✅ **`AssembleContext` triple-newline from trailing `\n` in content** — sections are now `strings.TrimSpace`d before joining, so a file's trailing newline (about.md/DIRECTIVE.md almost always end in one → this fired on every real file) collapses to the single blank-line separator. Test: `TestAssembleContext_TrailingNewlinesDoNotCompound`.
+- ✅ **Disjoint-writers test bundled a `Store`/`ApplyMemoryOps` assertion** — split the memory-op fence into its own `TestApplyMemoryOps_CannotTargetDirective`, so a Store failure points to the right test site.
