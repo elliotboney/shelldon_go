@@ -30,23 +30,39 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-22 # dev story 3.2
+last_updated: 2026-06-24 # code review 4.1 → done
 
 action_items:
   - epic: 2
-    action: "Context-aware hub.Publish (select on ctx.Done vs buffered send) — fold into Story 3.4 Telegram"
+    action: "Context-aware hub.Publish (select on ctx.Done vs buffered send) — folded into 3.4 but NOT done; actioned post-Epic-3-retro as AI-1"
     owner: "Elliot"
-    status: open
+    status: done
   - epic: 2
     action: "AD-17 slog observability for broker/provider-chain fallbacks — fold into Stories 3.1/3.2"
     owner: "Elliot"
-    status: open
+    status: done
   - epic: 2
     action: "Carry cooperative ctx-cancellation as a worker-contract requirement into Story 3.3 Dev Notes"
     owner: "Elliot"
-    status: open
+    status: done
   - epic: 2
     action: "Add per-test deadline guards on unbounded blocking receives (opportunistic)"
+    owner: "Elliot"
+    status: in-progress
+  - epic: 3
+    action: "Context-aware hub.Publish (PublishContext: select on ctx.Done vs buffered send); migrated dispatch/proactive/telegram producers — clears the dominant back-pressure debt theme"
+    owner: "Elliot"
+    status: done
+  - epic: 3
+    action: "Telegram degraded-transport: Serve now goes dormant on ctx.Done instead of returning init error immediately — no supervisor crash-loop"
+    owner: "Elliot"
+    status: done
+  - epic: 3
+    action: "Log ErrNoRoute instead of discarding it on hub.Publish (observability) — opportunistic, low priority"
+    owner: "Elliot"
+    status: open
+  - epic: 3
+    action: "Durable/rollback budget accounting — stop spending a budget slot on a failed turn; fold into Epic 4"
     owner: "Elliot"
     status: open
 project: shelldon_go
@@ -73,17 +89,17 @@ development_status:
   2-6-offline-acknowledgement-brainless-alive: done
   epic-2-retrospective: done
 
-  epic-3: in-progress
+  epic-3: done
   3-1-capability-broker-credential-boundary: done
   3-2-provider-chain-with-retry-fallback: done
-  3-3-real-worker-behind-the-seam: backlog
-  3-4-telegram-adapter-second-transport: backlog
-  3-5-turn-tier-scheduler-budget-battery-gate: backlog
-  3-6-llm-driven-proactive-pings: backlog
-  epic-3-retrospective: optional
+  3-3-real-worker-behind-the-seam: done
+  3-4-telegram-adapter-second-transport: done
+  3-5-turn-tier-scheduler-budget-battery-gate: done
+  3-6-llm-driven-proactive-pings: done
+  epic-3-retrospective: done
 
-  epic-4: backlog
-  4-1-sqlite-conversation-store: backlog
+  epic-4: in-progress
+  4-1-sqlite-conversation-store: done
   4-2-learnings-table-hot-path-capture-learning: backlog
   4-3-curated-markdown-tree-directive-md: backlog
   4-4-dream-cycle-non-sensitive: backlog

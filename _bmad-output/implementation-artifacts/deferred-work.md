@@ -1,5 +1,49 @@
 # Deferred Work
 
+## Deferred from: code review of 4-1-sqlite-conversation-store.md (2026-06-24)
+
+- **`convo_id` not in FTS table — full FTS scan on `Search`** — `Search` does a full FTS scan across all conversations then filters by `convo_id`; correct behavior but O(all messages) at scale. Acceptable at M1 single-user volume; revisit if conversation volume grows significantly or multi-user lands. **(Deferred — genuinely fine at M1.)**
+
+### Resolved in post-review fixes (2026-06-24)
+
+- ✅ **`Open("")` silent in-memory db** — `Open` now rejects an empty path with `memory: empty db path` (no silent data loss). Test: `TestOpen_RejectsEmptyPath`.
+- ✅ **Path with `?`/`&` corrupted the WAL DSN** — the DSN is now built via `net/url.URL` (path percent-encoded, pragmas in `RawQuery`), so special chars in the filename can't drop the WAL/synchronous/busy_timeout pragmas. Test: `TestOpen_PathWithSpecialChars` (asserts WAL still active + round-trip).
+- ✅ **Raw `DB()` test accessor could bypass FTS triggers** — replaced with a read-only `JournalMode(ctx)` test accessor; no `*sql.DB` is exposed, so tests can't write to `messages` directly.
+- ⏭️ **`telego` in `go.mod` diff** — not a 4.1 change; it's the uncommitted Epic 3 session work. Resolves on commit. No action.
+
+## Resolved (Epic 3 retro action items, 2026-06-24)
+
+- ✅ **Context-aware `hub.Publish`** — added `bus.Hub.PublishContext(ctx, env)` (select on `ctx.Done()` vs the buffered send); migrated the `dispatch`, `proactive`, and `telegram` producers. Clears the dominant back-pressure debt theme for the hot message paths. (`compositor.PushFace` boot push and `cli` readLoop still use blocking `Publish` — no ctx in scope, low risk.)
+- ✅ **Telegram degraded-transport supervisor crash-loop** — the degraded `transportServe` now blocks on `<-ctx.Done()` (dormant until shutdown) instead of returning the init error immediately, so suture no longer tight-loops a missing/invalid token.
+
+## Deferred from: code review of 3-6-llm-driven-proactive-pings.md (2026-06-23)
+
+- **Budget slot consumed before Submit; transient failures drain daily budget** — `core/turntier/turntier.go:135,143` — `tryConsume` is called before `Arbiter.Submit`; a transient provider failure permanently spends a daily budget slot with no outbound message produced. By-design for M1 (the spec accepts this); revisit in Epic 4 when durable, rollback-capable budgets land.
+- **Telegram degraded-transport supervisor crash loop** — `cmd/shelldon/main.go:109-112` — when `telegram.NewFromEnv` fails at init, `transportServe` is set to a function that immediately returns the init error; the supervisor's restart loop retries it indefinitely with no meaningful backoff. Not a 3.6 introduction (3.4 scope) but not previously captured in deferred work.
+- **Test outbound channel 4× larger than production** — `core/proactive/proactive_test.go:37` — `make(chan contracts.Envelope, 64)` vs production's 16-slot buffer; tests will not catch a `hub.Publish` deadlock that would occur in production when the channel fills beyond 16 messages.
+
+## Deferred from: code review of 3-5-turn-tier-scheduler-budget-battery-gate (2026-06-22)
+
+- **TOCTOU window on `lastFired` check-and-update** — `core/turntier/turntier.go:120-136` — the cooldown check reads `lastFired` under one lock acquisition and releases before the budget/battery checks, then re-acquires to write `lastFired`. Non-exploitable with the scheduler's single-goroutine-per-job guarantee, but breaks if `run()` is ever called concurrently. Revisit if multi-goroutine job patterns are introduced.
+- **`runGatedJob` helper silently discards caller's Config fields** — `core/turntier/turntier_test.go:40-64` — the helper unconditionally overwrites cadence, cooldown, build, arbiter, budget, and power from its own parameters; the `cfg Config` arg is effectively just a name carrier. Future tests pre-populating other Config fields will silently fail. Restructure when adding test cases that need different Config values.
+- **Year-boundary (Dec 31→Jan 1) untested for budget daily reset** — `core/turntier/turntier.go:62` — `TestBudget_TryConsumeResetsOnDayBoundary` covers same-year boundary only. The `year*1000+yearDay` formula is correct for year rollover (different year × 1000 + different yearDay yields distinct keys), but no test verifies this. Cover when adding budget stress tests.
+
+## Deferred from: code review of 3-4-telegram-adapter-second-transport (2026-06-22)
+
+- **`Send` is synchronous in Serve's main select** — `transport/telegram/telegram.go` — if the Telegram API is slow or rate-limiting, `Serve` blocks in `Send` and cannot drain `outbound` or respond to `ctx.Done()` until it returns. Consistent with the CLI adapter design; M1 single-owner doesn't produce backpressure. Revisit for multi-user or high-throughput transport.
+- **`WithTimeout` on `UpdatesViaLongPolling` may not reach the wire** — `transport/telegram/telegram.go:170` — telego's internal polling loop may override the Timeout field. The AC3 test validates the constant relationship only, not wire behavior. Requires telego source audit + live integration test to confirm.
+- **ConvoID encoded as bare decimal string — no transport prefix** — `transport/telegram/telegram.go:156` — if a future multi-transport story routes messages from multiple transports simultaneously, numeric ConvoIDs from different transports could collide. The M1 invariant is single-transport-at-a-time (point-to-point bus); add a `tg:` prefix when multi-transport fan-out lands in a later story.
+- **`NewFromEnv` invalid-owner-ID error path untested** — `transport/telegram/telegram.go:94` — the `strconv.ParseInt` failure branch when `SHELLDON_TELEGRAM_OWNER_ID` is not a valid int64 has no test coverage. Low risk (format error is obvious at startup); cover if `NewFromEnv` is called from non-main paths.
+
+## Deferred from: code review of 3-3-real-worker-behind-the-seam (2026-06-22)
+
+- **Empty `turn.Input` forwarded without guard** — `worker/monolith/monolith.go:AssembleAndPropose` — blank input causes a wasted LLM call or 4xx degraded to `ErrAllProvidersFailed`; upstream currently prevents it but no worker-level fence exists. Defer to Epic 4 when input assembly is formalized.
+- **Empty `resp.Text` accepted as valid reply** — `worker/monolith/monolith.go:AssembleAndPropose` — provider returning HTTP 200 with empty content propagates a blank reply to dispatch/CLI. No current evidence this occurs; revisit with streaming/response validation.
+- **`fakeCompleter.gotReq` written without synchronization** — `worker/monolith/monolith_test.go` — safe today (synchronous tests pass race detector), but any future test that reads `gotReq` after launching `AssembleAndPropose` in a goroutine will race. Add a mutex or restructure.
+- **`blockUntilCancel` fake hangs forever if ctx never canceled** — `worker/monolith/monolith_test.go:fakeCompleter.Complete` — `<-ctx.Done()` with no timeout guard; a future test setting this flag without canceling will hang the binary.
+- **Cancellation test goroutine leaked on 2-second timeout failure** — `worker/monolith/monolith_test.go:TestAssembleAndPropose_CancellationPropagates` — goroutine exits eventually via buffered channel, but after test teardown may be running. Clean up with `t.Cleanup` + cancel.
+- **No mechanical AD-1 import-graph guard** — core's LLM-free constraint is enforced by convention; no `go list -deps` check or depguard rule. Pre-existing gap; revisit alongside `core/dispatch/imports_test.go` pattern.
+
 ## Deferred from: code review of 3-2-provider-chain-with-retry-fallback (2026-06-22)
 
 - **`lastErr` is a `retrypolicy.ExceededError` wrapper, not raw provider error** — `broker/broker.go:~112` — when retries exhaust, failsafe-go wraps the last error in `retrypolicy.ExceededError`. Callers using `errors.As` to extract a specific error type must unwrap through that. Not a current bug (ErrAllProvidersFailed chain is correct), but misleading to future maintainers. Add `.ReturnLastFailure()` to the builder or document the wrapping.
