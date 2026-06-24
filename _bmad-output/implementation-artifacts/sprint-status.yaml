@@ -30,7 +30,7 @@
 # - Re-run sprint-planning to refresh auto-detected statuses
 
 generated: 2026-06-20 08:33:20
-last_updated: 2026-06-24 # dev story 4.5 → done
+last_updated: 2026-06-24 # epic 4 retrospective → done
 
 action_items:
   - epic: 2
@@ -63,6 +63,22 @@ action_items:
     status: open
   - epic: 3
     action: "Durable/rollback budget accounting — stop spending a budget slot on a failed turn; fold into Epic 4"
+    owner: "Elliot"
+    status: open
+  - epic: 4
+    action: "Close 4.5 data-integrity bugs before Story 5.3: make PromoteLearning+AppendFact atomic (or compensating); stop ApplyLearning UPSERT resetting a promoted/pruned status back to pending"
+    owner: "Elliot"
+    status: open
+  - epic: 4
+    action: "Decide AI-4 durable/in-memory budget: action standalone or explicitly park against Epic 6 (PiSugar power/budget gate) — stop folding it forward"
+    owner: "Elliot"
+    status: open
+  - epic: 4
+    action: "ErrNoRoute observability (carried Epic 3 AI-3): log dropped hub publishes via slog.Warn — low priority, opportunistic"
+    owner: "Elliot"
+    status: open
+  - epic: 4
+    action: "Audit unchecked [Patch] items actually landed (4.1/4.3 dot/empty relPath guards, 4.4 mem.Close before os.Exit(1))"
     owner: "Elliot"
     status: open
 project: shelldon_go
@@ -98,13 +114,13 @@ development_status:
   3-6-llm-driven-proactive-pings: done
   epic-3-retrospective: done
 
-  epic-4: in-progress
+  epic-4: done
   4-1-sqlite-conversation-store: done
   4-2-learnings-table-hot-path-capture-learning: done
   4-3-curated-markdown-tree-directive-md: done
   4-4-memory-augmented-prompts: done
   4-5-dream-cycle-non-sensitive: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
   epic-5: backlog
   5-1-privsep-lite-worker-subprocess-gob-transport-swap: backlog
