@@ -24,9 +24,10 @@ func NewContext(store *Store, curated *Curated, recentN int) *Context {
 
 // PromptContext builds the AD-7 retrieval string for convoID. It structurally
 // satisfies a one-method interface defined in the worker package — the exact
-// signature must not change. The order is: owner directive, bot about, then the
-// recent window rendered oldest→newest (Recent returns most-recent-first; we
-// reverse into a local copy so the assembled prompt reads chronologically).
+// signature must not change. The order is: owner directive, bot about, promoted
+// learnings, then the recent window rendered oldest→newest (Recent returns
+// most-recent-first; we reverse into a local copy so the assembled prompt reads
+// chronologically).
 func (c *Context) PromptContext(ctx context.Context, convoID string) (string, error) {
 	// Curated reads are best-effort — a missing file yields "" (no error); a real
 	// I/O error (disk/permissions) omits that section but is logged, not silent (AD-17).
@@ -37,6 +38,10 @@ func (c *Context) PromptContext(ctx context.Context, convoID string) (string, er
 	about, aerr := c.curated.ReadAbout()
 	if aerr != nil {
 		slog.Warn("memory: read about failed; omitting from prompt context", "err", aerr)
+	}
+	learnings, lerr := c.curated.ReadLearnings()
+	if lerr != nil {
+		slog.Warn("memory: read learnings failed; omitting from prompt context", "err", lerr)
 	}
 
 	recent, err := c.store.Recent(ctx, convoID, c.recentN)
@@ -50,5 +55,5 @@ func (c *Context) PromptContext(ctx context.Context, convoID string) (string, er
 		reversed[len(recent)-1-i] = m
 	}
 
-	return AssembleContext(directive, about, reversed), nil
+	return AssembleContext(directive, about, learnings, reversed), nil
 }

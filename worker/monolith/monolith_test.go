@@ -218,6 +218,131 @@ func TestAssembleAndPropose_ContextSourceError(t *testing.T) {
 	}
 }
 
+// TestAssembleAndPropose_DreamHappyPath verifies the dream flow: a fakeCompleter
+// returning a JSON array (wrapped in markdown fences) produces MemoryOps with the
+// mapped promote+prune ops, an empty Reply, and the correct system+user messages.
+func TestAssembleAndPropose_DreamHappyPath(t *testing.T) {
+	const candidateLearnings = "learning1: dogs bark; learning2: cats meow"
+	// Response wrapped in ```json fences with surrounding prose, to exercise robust extraction.
+	const jsonResp = "Here is my review:\n```json\n" +
+		`[{"pattern_key":"dogs_bark","action":"promote","observation":"dogs make noise"},` +
+		`{"pattern_key":"cats_meow","action":"prune","observation":""}]` +
+		"\n```\nThat's my decision."
+
+	fc := &fakeCompleter{resp: broker.Response{Text: jsonResp}}
+	w := monolith.New(fc)
+
+	res, err := w.AssembleAndPropose(context.Background(), contracts.Job{
+		Kind:    contracts.JobDream,
+		Input:   candidateLearnings,
+		ConvoID: "dream-c1",
+	})
+	if err != nil {
+		t.Fatalf("dream happy path returned error: %v", err)
+	}
+	if res.Reply != "" {
+		t.Errorf("Reply = %q, want empty — dream produces no outbound message", res.Reply)
+	}
+	if len(res.MemoryOps) != 2 {
+		t.Fatalf("MemoryOps len = %d, want 2; ops=%+v", len(res.MemoryOps), res.MemoryOps)
+	}
+
+	promote := res.MemoryOps[0]
+	if promote.Kind != contracts.MemoryOpPromoteLearning {
+		t.Errorf("ops[0].Kind = %q, want %q", promote.Kind, contracts.MemoryOpPromoteLearning)
+	}
+	if promote.PatternKey != "dogs_bark" {
+		t.Errorf("ops[0].PatternKey = %q, want %q", promote.PatternKey, "dogs_bark")
+	}
+	if promote.Observation != "dogs make noise" {
+		t.Errorf("ops[0].Observation = %q, want %q", promote.Observation, "dogs make noise")
+	}
+
+	prune := res.MemoryOps[1]
+	if prune.Kind != contracts.MemoryOpPruneLearning {
+		t.Errorf("ops[1].Kind = %q, want %q", prune.Kind, contracts.MemoryOpPruneLearning)
+	}
+	if prune.PatternKey != "cats_meow" {
+		t.Errorf("ops[1].PatternKey = %q, want %q", prune.PatternKey, "cats_meow")
+	}
+	// prune carries no observation
+	if prune.Observation != "" {
+		t.Errorf("ops[1].Observation = %q, want empty for prune", prune.Observation)
+	}
+
+	// Verify the request used dreamPrompt as system and turn.Input as user.
+	msgs := fc.gotReq.Messages
+	if len(msgs) < 2 {
+		t.Fatalf("dream request has %d messages, want at least 2", len(msgs))
+	}
+	if msgs[0].Role != "system" {
+		t.Errorf("msgs[0].Role = %q, want system", msgs[0].Role)
+	}
+	if !strings.Contains(msgs[0].Content, "dreaming") {
+		t.Errorf("msgs[0].Content does not mention dreaming; got %q", msgs[0].Content)
+	}
+	lastMsg := msgs[len(msgs)-1]
+	if lastMsg.Role != "user" || !strings.Contains(lastMsg.Content, candidateLearnings) {
+		t.Errorf("last message = %+v, want user message with candidate learnings", lastMsg)
+	}
+}
+
+// TestAssembleAndPropose_DreamMalformed verifies that a malformed (non-JSON)
+// dream response returns an empty Result and nil error — a bad dream must never
+// break the scheduler (AD-17).
+func TestAssembleAndPropose_DreamMalformed(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+	}{
+		{"plain text", "not json at all"},
+		{"empty string", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := &fakeCompleter{resp: broker.Response{Text: tc.text}}
+			w := monolith.New(fc)
+
+			res, err := w.AssembleAndPropose(context.Background(), contracts.Job{
+				Kind:  contracts.JobDream,
+				Input: "some learnings",
+			})
+			if err != nil {
+				t.Errorf("malformed dream returned error %v, want nil", err)
+			}
+			if len(res.MemoryOps) != 0 {
+				t.Errorf("MemoryOps = %+v, want empty on malformed dream", res.MemoryOps)
+			}
+			if res.Reply != "" {
+				t.Errorf("Reply = %q, want empty", res.Reply)
+			}
+		})
+	}
+}
+
+// TestAssembleAndPropose_ReplyKindUnchanged verifies that a Job with the default
+// kind ("" / JobReply) still returns a normal Reply with no MemoryOps, confirming
+// the dream branch does not disturb the existing reply flow.
+func TestAssembleAndPropose_ReplyKindUnchanged(t *testing.T) {
+	fc := &fakeCompleter{resp: broker.Response{Text: "still works"}}
+	w := monolith.New(fc)
+
+	res, err := w.AssembleAndPropose(context.Background(), contracts.Job{
+		Kind:    contracts.JobReply,
+		Input:   "hello",
+		ConvoID: "c-reply",
+	})
+	if err != nil {
+		t.Fatalf("reply-kind job returned error: %v", err)
+	}
+	if res.Reply != "still works" {
+		t.Errorf("Reply = %q, want %q", res.Reply, "still works")
+	}
+	if len(res.MemoryOps) != 0 {
+		t.Errorf("MemoryOps = %+v, want empty for reply job", res.MemoryOps)
+	}
+}
+
 // TestAssembleAndPropose_RealMemoryContext is the AC1 integration proof: a real
 // memory.Context (sqlite store + curated tree) feeds the worker, so the prompt the
 // worker sends includes the owner's DIRECTIVE (authoritative), about.md, and a

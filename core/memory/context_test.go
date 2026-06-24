@@ -107,6 +107,63 @@ func TestPromptContext_EmptyStoreAndCurated(t *testing.T) {
 	}
 }
 
+// TestPromptContext_LearningsSection verifies that a promoted learning written to
+// FactsLearningsPath appears under "### LEARNINGS" in PromptContext output, ordered
+// DIRECTIVE → ABOUT → LEARNINGS → RECENT.
+func TestPromptContext_LearningsSection(t *testing.T) {
+	ctx := context.Background()
+
+	store, err := memory.Open(filepath.Join(t.TempDir(), "learn.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	curatedRoot := t.TempDir()
+	curated, err := memory.OpenCurated(curatedRoot)
+	if err != nil {
+		t.Fatalf("open curated: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(curatedRoot, "DIRECTIVE.md"), []byte("be kind"), 0o644); err != nil {
+		t.Fatalf("write DIRECTIVE.md: %v", err)
+	}
+	if err := curated.WriteAbout("a small shellfish"); err != nil {
+		t.Fatalf("write about: %v", err)
+	}
+	if err := curated.AppendFact(memory.FactsLearningsPath, "always greet with enthusiasm"); err != nil {
+		t.Fatalf("append fact: %v", err)
+	}
+	if _, err := store.Append(ctx, "c1", "owner", "hey"); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	out, err := memory.NewContext(store, curated, 10).PromptContext(ctx, "c1")
+	if err != nil {
+		t.Fatalf("PromptContext: %v", err)
+	}
+
+	if !strings.Contains(out, "### LEARNINGS") {
+		t.Errorf("output missing ### LEARNINGS section:\n%s", out)
+	}
+	if !strings.Contains(out, "always greet with enthusiasm") {
+		t.Errorf("output missing promoted learning text:\n%s", out)
+	}
+
+	// Order: DIRECTIVE → ABOUT → LEARNINGS → RECENT
+	dIdx := strings.Index(out, "be kind")
+	aIdx := strings.Index(out, "a small shellfish")
+	lIdx := strings.Index(out, "### LEARNINGS")
+	rIdx := strings.Index(out, "### RECENT")
+
+	if dIdx < 0 || aIdx < 0 || lIdx < 0 || rIdx < 0 {
+		t.Fatalf("section missing: directive@%d about@%d learnings@%d recent@%d\n%s", dIdx, aIdx, lIdx, rIdx, out)
+	}
+	if dIdx > aIdx || aIdx > lIdx || lIdx > rIdx {
+		t.Errorf("wrong order: directive@%d about@%d learnings@%d recent@%d\n%s", dIdx, aIdx, lIdx, rIdx, out)
+	}
+}
+
 // TestPromptContext_RecentNCap verifies that recentN=1 with two messages returns
 // only the most-recent message ("hi friend"), not the older one ("hello there").
 func TestPromptContext_RecentNCap(t *testing.T) {

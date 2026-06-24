@@ -175,3 +175,15 @@
 
 - ✅ **`AssembleContext` triple-newline from trailing `\n` in content** — sections are now `strings.TrimSpace`d before joining, so a file's trailing newline (about.md/DIRECTIVE.md almost always end in one → this fired on every real file) collapses to the single blank-line separator. Test: `TestAssembleContext_TrailingNewlinesDoNotCompound`.
 - ✅ **Disjoint-writers test bundled a `Store`/`ApplyMemoryOps` assertion** — split the memory-op fence into its own `TestApplyMemoryOps_CannotTargetDirective`, so a Store failure points to the right test site.
+
+## Deferred from: code review of 4-5-dream-cycle-non-sensitive.md (2026-06-24)
+
+- **Non-atomic PromoteLearning + AppendFact** — partial failure leaves learning promoted in sqlite but observation absent from curated markdown; true atomicity requires a different approach (e.g. write-ahead journal or compensating undo). File: `core/dream/dream.go`.
+- **extractJSONArray bracket counting ignores string literals** — an unbalanced `[` inside an observation string value causes a graceful no-op dream; consequence is acceptable (no corruption) but the dream silently burns budget. File: `worker/monolith/monolith.go`.
+- **Budget/cooldown in-memory only** — resets on restart; a crash-loop could fire more than `dreamBudgetPerDay` times per day. Pre-existing turntier limitation, acknowledged in comments. File: `cmd/shelldon/main.go`.
+- **Recurrence filter post-SQL not in query** — `build()` fetches up to 20 pending learnings by `updated_at DESC`, then filters by `RecurrenceCount >= promoteThreshold` in Go; above-threshold candidates past position 20 are invisible to the dream. Acceptable at current volume; fix is to add `recurrence_count >= ?` to the SQL query. File: `core/dream/dream.go`.
+- **Duplicate JSON keys in model response → conflicting ops** — if the LLM returns `[{promote foo}, {prune foo}]`, both ops run in order and the learning ends up in the state of the last op. Low probability with well-prompted LLM. File: `worker/monolith/monolith.go`.
+- **Empty dream input when no candidates qualify** — if no pending learning meets `promoteThreshold`, `build()` sends a `JobDream` with empty `Input`, causing an LLM call with no candidates. Spec explicitly permits this (harmless at 2/day cap). File: `core/dream/dream.go`.
+- **AppendFact accepts arbitrary relPath — no canonical prefix guard** — `WriteFile` rejects `vault/` and `DIRECTIVE.md` but `AppendFact` has no prefix guard; future callers could write anywhere in the curated tree. File: `core/memory/curated.go`.
+- **Race between PromoteLearning and concurrent ApplyLearning UPSERT** — `ApplyLearning`'s UPSERT resets `status='pending'`; a concurrent reply turn capturing the same `pattern_key` could undo a concurrent dream promotion. SQLite WAL + AD-6 single-writer mitigates in practice. File: `core/memory/learnings.go`.
+- **ApplyMemoryOps silently drops MemoryOpPromoteLearning/PruneLearning** — the dispatch path's `ApplyMemoryOps` switch has no case for dream ops; they would be silently dropped if ever routed there. No current code routes dream ops through dispatch. File: `core/memory/learnings.go`.

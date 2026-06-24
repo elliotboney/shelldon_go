@@ -2,6 +2,7 @@ package memory_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
@@ -197,6 +198,72 @@ func TestLearningsAndMessagesIndependent(t *testing.T) {
 	}
 	if len(msgs) != 1 || msgs[0].Content != "just chatting" {
 		t.Fatalf("recent = %+v, want only the one chat message (apply learning added none)", msgs)
+	}
+}
+
+// TestPromoteLearning sets status to "promoted" and advances updated_at.
+func TestPromoteLearning(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+
+	if err := s.ApplyLearning(ctx, "obs promo", "pk-promote"); err != nil {
+		t.Fatalf("apply learning: %v", err)
+	}
+	before, ok, err := s.LearningByPatternKey(ctx, "pk-promote")
+	if err != nil || !ok {
+		t.Fatalf("lookup before promote: ok=%v err=%v", ok, err)
+	}
+
+	if err := s.PromoteLearning(ctx, "pk-promote"); err != nil {
+		t.Fatalf("promote learning: %v", err)
+	}
+
+	after, ok, err := s.LearningByPatternKey(ctx, "pk-promote")
+	if err != nil || !ok {
+		t.Fatalf("lookup after promote: ok=%v err=%v", ok, err)
+	}
+	if after.Status != memory.LearningStatusPromoted {
+		t.Errorf("status = %q, want %q", after.Status, memory.LearningStatusPromoted)
+	}
+	if after.UpdatedAt.Before(before.UpdatedAt) {
+		t.Errorf("updated_at went backwards on promote: before=%v after=%v", before.UpdatedAt, after.UpdatedAt)
+	}
+}
+
+// TestPruneLearning sets status to "pruned".
+func TestPruneLearning(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+
+	if err := s.ApplyLearning(ctx, "obs prune", "pk-prune"); err != nil {
+		t.Fatalf("apply learning: %v", err)
+	}
+
+	if err := s.PruneLearning(ctx, "pk-prune"); err != nil {
+		t.Fatalf("prune learning: %v", err)
+	}
+
+	got, ok, err := s.LearningByPatternKey(ctx, "pk-prune")
+	if err != nil || !ok {
+		t.Fatalf("lookup after prune: ok=%v err=%v", ok, err)
+	}
+	if got.Status != memory.LearningStatusPruned {
+		t.Errorf("status = %q, want %q", got.Status, memory.LearningStatusPruned)
+	}
+}
+
+// TestPromotePruneUnknownKey proves a pattern_key with no backing row (e.g. an LLM
+// hallucination) yields ErrLearningNotFound rather than a silent no-op — so the
+// dream skips the curated write for a key it can't actually promote.
+func TestPromotePruneUnknownKey(t *testing.T) {
+	ctx := context.Background()
+	s := openTestStore(t)
+
+	if err := s.PromoteLearning(ctx, "pk-ghost"); !errors.Is(err, memory.ErrLearningNotFound) {
+		t.Errorf("PromoteLearning(unknown) err = %v, want ErrLearningNotFound", err)
+	}
+	if err := s.PruneLearning(ctx, "pk-ghost"); !errors.Is(err, memory.ErrLearningNotFound) {
+		t.Errorf("PruneLearning(unknown) err = %v, want ErrLearningNotFound", err)
 	}
 }
 

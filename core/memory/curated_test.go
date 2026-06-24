@@ -112,7 +112,7 @@ func TestCurated_DirectiveAuthoritative(t *testing.T) {
 		{Role: "owner", Content: "hi"},
 		{Role: "pet", Content: "hello"},
 	}
-	out := memory.AssembleContext(dir, aboutText, recent)
+	out := memory.AssembleContext(dir, aboutText, "", recent)
 
 	di := strings.Index(out, directiveText)
 	ai := strings.Index(out, aboutText)
@@ -171,7 +171,7 @@ func TestCurated_DisjointWriters(t *testing.T) {
 // section content (real about.md/DIRECTIVE.md files end in a newline) collapses to
 // the single blank-line separator, not stacked blank lines.
 func TestAssembleContext_TrailingNewlinesDoNotCompound(t *testing.T) {
-	out := memory.AssembleContext("be kind\n\n", "a shellfish\n", nil)
+	out := memory.AssembleContext("be kind\n\n", "a shellfish\n", "", nil)
 	if strings.Contains(out, "\n\n\n") {
 		t.Fatalf("assembled context has stacked blank lines:\n%q", out)
 	}
@@ -219,8 +219,86 @@ func TestCurated_GracefulAbsent(t *testing.T) {
 		t.Fatalf("absent directive = %q, want empty", dir)
 	}
 
-	if out := memory.AssembleContext("", "", nil); strings.TrimSpace(out) != "" {
+	if out := memory.AssembleContext("", "", "", nil); strings.TrimSpace(out) != "" {
 		t.Fatalf("AssembleContext(empty) = %q, want empty", out)
+	}
+}
+
+// TestAppendFact_AccumulatesTwoLines proves two successive AppendFact calls leave
+// both lines present and newline-separated.
+func TestAppendFact_AccumulatesTwoLines(t *testing.T) {
+	c, _ := openTestCurated(t)
+
+	if err := c.AppendFact("facts/notes.md", "line one"); err != nil {
+		t.Fatalf("first AppendFact: %v", err)
+	}
+	if err := c.AppendFact("facts/notes.md", "line two"); err != nil {
+		t.Fatalf("second AppendFact: %v", err)
+	}
+
+	data, err := c.ReadFile("facts/notes.md")
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "line one") {
+		t.Errorf("AppendFact: first line missing from %q", got)
+	}
+	if !strings.Contains(got, "line two") {
+		t.Errorf("AppendFact: second line missing from %q", got)
+	}
+	// Both lines must be newline-separated.
+	if !strings.Contains(got, "line one\nline two") {
+		t.Errorf("AppendFact: lines not newline-separated in %q", got)
+	}
+}
+
+// TestAppendFact_AbsentFileCreated proves AppendFact on FactsLearningsPath when
+// absent creates it with the text and a trailing newline.
+func TestAppendFact_AbsentFileCreated(t *testing.T) {
+	c, _ := openTestCurated(t)
+
+	if err := c.AppendFact(memory.FactsLearningsPath, "new fact"); err != nil {
+		t.Fatalf("AppendFact to absent file: %v", err)
+	}
+
+	got, err := c.ReadLearnings()
+	if err != nil {
+		t.Fatalf("ReadLearnings: %v", err)
+	}
+	if !strings.Contains(got, "new fact") {
+		t.Errorf("ReadLearnings = %q, want it to contain %q", got, "new fact")
+	}
+}
+
+// TestAppendFact_OwnerOnlyPaths proves vault/ and DIRECTIVE.md return ErrOwnerOnly
+// and create nothing.
+func TestAppendFact_OwnerOnlyPaths(t *testing.T) {
+	c, root := openTestCurated(t)
+
+	if err := c.AppendFact("vault/x.md", "secret"); !errors.Is(err, memory.ErrOwnerOnly) {
+		t.Fatalf("AppendFact(vault/x.md) = %v, want ErrOwnerOnly", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "vault")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("vault/ must not exist after rejected AppendFact: stat err = %v", err)
+	}
+
+	if err := c.AppendFact("DIRECTIVE.md", "x"); !errors.Is(err, memory.ErrOwnerOnly) {
+		t.Fatalf("AppendFact(DIRECTIVE.md) = %v, want ErrOwnerOnly", err)
+	}
+}
+
+// TestReadLearnings_AbsentYieldsEmpty proves ReadLearnings returns "" with no error
+// when facts/learnings.md does not yet exist.
+func TestReadLearnings_AbsentYieldsEmpty(t *testing.T) {
+	c, _ := openTestCurated(t)
+
+	got, err := c.ReadLearnings()
+	if err != nil {
+		t.Fatalf("ReadLearnings on absent file: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("ReadLearnings absent = %q, want empty", got)
 	}
 }
 

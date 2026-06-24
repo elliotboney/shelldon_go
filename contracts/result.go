@@ -4,6 +4,18 @@ package contracts
 // single observation (with an optional dedup pattern key) for core to record.
 const MemoryOpCaptureLearning = "capture_learning"
 
+// MemoryOpPromoteLearning and MemoryOpPruneLearning are the dream cycle's
+// vocabulary (Story 4.5/AD-15). The dream worker proposes promoting a durable,
+// recurring learning into curated markdown — promote carries PatternKey plus the
+// Observation to write — or pruning a low-value one — prune carries only
+// PatternKey. Core (the dream job's OnResult) applies them as the sole writer
+// (AD-6); the worker never writes. Both reuse MemoryOp's existing fields — no
+// struct change.
+const (
+	MemoryOpPromoteLearning = "promote_learning"
+	MemoryOpPruneLearning   = "prune_learning"
+)
+
 // MemoryOp is a memory mutation the worker proposes. The worker never writes
 // directly; this is the proposal channel — the worker proposes, core applies
 // (AD-6). Each op kind uses the subset of fields its schema defines:

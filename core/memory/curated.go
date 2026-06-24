@@ -21,6 +21,10 @@ type Curated struct {
 // never write: the DIRECTIVE.md constitution or the (future) vault.
 var ErrOwnerOnly = errors.New("memory: path is owner-only, not bot-writable")
 
+// FactsLearningsPath is the curated path where the dream cycle writes promoted
+// learnings as durable facts.
+const FactsLearningsPath = "facts/learnings.md"
+
 // OpenCurated opens (creating if absent) the curated tree rooted at root, plus its
 // facts/ subdir. An empty root is rejected outright.
 func OpenCurated(root string) (*Curated, error) {
@@ -116,14 +120,51 @@ func (c *Curated) Directive() (string, error) {
 	return string(data), nil
 }
 
+// AppendFact appends text to relPath in the curated tree. If the file is absent
+// it is created. A non-empty existing file that does not end in "\n" gets a "\n"
+// separator before text. The appended text always ends with "\n". Owner-only paths
+// (DIRECTIVE.md, vault/) return ErrOwnerOnly and write nothing.
+func (c *Curated) AppendFact(relPath, text string) error {
+	existing, err := c.ReadFile(relPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	// existing is nil on ErrNotExist, which is treated as empty.
+	var buf strings.Builder
+	if len(existing) > 0 {
+		buf.Write(existing)
+		if existing[len(existing)-1] != '\n' {
+			buf.WriteByte('\n')
+		}
+	}
+	buf.WriteString(text)
+	if len(text) == 0 || text[len(text)-1] != '\n' {
+		buf.WriteByte('\n')
+	}
+	return c.WriteFile(relPath, []byte(buf.String()))
+}
+
+// ReadLearnings returns the text of facts/learnings.md. An absent file yields ""
+// with no error, mirroring ReadAbout.
+func (c *Curated) ReadLearnings() (string, error) {
+	data, err := c.ReadFile(FactsLearningsPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 // AssembleContext builds the prompt context block in AD-7 retrieval order: the
 // owner's directive first under an authoritative header, then the bot's about, then
-// the recent conversation window oldest→newest. Empty sections are omitted; an
-// all-empty input yields "". It returns a plain string only — core/memory must not
-// import broker, so the recent window uses the local Message type. The LLM
-// grep/FTS5 augmentation lands later; the worker calls this when the memory→worker
-// integration arrives (Story 4.4).
-func AssembleContext(directive, about string, recent []Message) string {
+// promoted learnings, then the recent conversation window oldest→newest. Empty
+// sections are omitted; an all-empty input yields "". It returns a plain string
+// only — core/memory must not import broker, so the recent window uses the local
+// Message type. The LLM grep/FTS5 augmentation lands later; the worker calls this
+// when the memory→worker integration arrives (Story 4.4).
+func AssembleContext(directive, about, learnings string, recent []Message) string {
 	var sections []string
 	// Trim surrounding whitespace so a file's trailing newline (about.md/DIRECTIVE.md
 	// almost always end in one) doesn't compound into blank lines between sections.
@@ -132,6 +173,9 @@ func AssembleContext(directive, about string, recent []Message) string {
 	}
 	if a := strings.TrimSpace(about); a != "" {
 		sections = append(sections, "### ABOUT\n"+a)
+	}
+	if l := strings.TrimSpace(learnings); l != "" {
+		sections = append(sections, "### LEARNINGS\n"+l)
 	}
 	if len(recent) > 0 {
 		var b strings.Builder

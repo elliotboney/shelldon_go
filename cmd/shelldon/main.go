@@ -5,7 +5,7 @@
 // chat-transport adapter (CLI by default; Telegram via SHELLDON_TRANSPORT=telegram
 // — AD-12 pluggable transport, the adapter holds its own bot-token credential),
 // terminal face renderer, and the tier-shaped scheduler (running the blink +
-// mood-drift reflex jobs and the LLM-driven proactive-ping turn job), then runs
+// mood-drift reflex jobs and the LLM-driven proactive-ping + dream-cycle turn jobs), then runs
 // them as supervised edges under the core suture root until a shutdown signal
 // arrives, draining edges in reverse start order (AD-5).
 package main
@@ -26,6 +26,7 @@ import (
 	"github.com/elliotboney/shelldon_go/core/bus"
 	"github.com/elliotboney/shelldon_go/core/compositor"
 	"github.com/elliotboney/shelldon_go/core/dispatch"
+	"github.com/elliotboney/shelldon_go/core/dream"
 	"github.com/elliotboney/shelldon_go/core/memory"
 	"github.com/elliotboney/shelldon_go/core/proactive"
 	"github.com/elliotboney/shelldon_go/core/reflexes"
@@ -170,6 +171,22 @@ func main() {
 	proactiveBudget := turntier.NewBudget(proactiveBudgetPerDay)
 	sched.Register(proactive.NewJob(hub, arb, proactiveBudget, turntier.ACPower{}, ownerConvoID,
 		func() time.Duration { return proactiveCadence }, proactiveCooldown))
+
+	// Dream-cycle turn job (FR11/AD-15): a scheduled introspective turn that reviews
+	// recurring pending learnings, promotes durable ones into the curated tree, and
+	// prunes the rest — so a learning the pet keeps re-observing grounds later turns
+	// (via the 4.4 read path). It reuses the worker/broker/arbiter exactly like the
+	// proactive ping; the worker proposes promote/prune, core (dream.OnResult) writes
+	// (AD-6). The sensitive lane stays OFF until Epic 5. Conservative tunable config;
+	// the in-memory budget/cooldown reset on restart.
+	const (
+		dreamBudgetPerDay = 2
+		dreamCadence      = 6 * time.Hour  // how often to consider dreaming
+		dreamCooldown     = 12 * time.Hour // minimum interval between dreams
+	)
+	dreamBudget := turntier.NewBudget(dreamBudgetPerDay)
+	sched.Register(dream.NewJob(arb, mem, curated, dreamBudget, turntier.ACPower{},
+		func() time.Duration { return dreamCadence }, dreamCooldown))
 
 	root := supervisor.New("shelldon")
 	// Start order: state-checkpoint first, then dispatch, then transport → reverse

@@ -30,7 +30,7 @@ func TestEnvelopeRoundTrip(t *testing.T) {
 	cases := map[Kind]Envelope{
 		KindJob: {
 			Header:  Header{ID: "e1", V: 1, Kind: KindJob, Src: "core", Dst: "worker", TurnID: "t1"},
-			Payload: Job{Input: "hello", ConvoID: "c1"},
+			Payload: Job{Input: "hello", ConvoID: "c1", Kind: JobDream}, // non-zero Kind must survive the wire (Story 4.5)
 		},
 		KindResult: {
 			Header:  Header{ID: "e2", V: 1, Kind: KindResult, Src: "worker", Dst: "core", TurnID: "t1"},
@@ -106,6 +106,9 @@ func TestAdditiveEvolution(t *testing.T) {
 		}
 		if got.ConvoID != "" {
 			t.Errorf("appended field ConvoID = %q, want zero value", got.ConvoID)
+		}
+		if got.Kind != JobReply {
+			t.Errorf("appended field Kind = %q, want zero value (JobReply)", got.Kind)
 		}
 	})
 }

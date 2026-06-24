@@ -30,6 +30,14 @@ type Learning struct {
 // the dream cycle reviews it.
 const LearningStatusPending = "pending"
 
+// LearningStatusPromoted is the status a learning receives when the dream cycle
+// promotes it as a durable fact.
+const LearningStatusPromoted = "promoted"
+
+// LearningStatusPruned is the status a learning receives when the dream cycle
+// decides it is noise and prunes it.
+const LearningStatusPruned = "pruned"
+
 // ApplyLearning records observation under patternKey as the single-writer dedup
 // apply (AD-6). A new keyed observation inserts a pending row at count 1; a repeat
 // of the same patternKey increments RecurrenceCount and overwrites the observation
@@ -95,6 +103,45 @@ func (s *Store) LearningByPatternKey(ctx context.Context, patternKey string) (Le
 	l.CreatedAt = time.Unix(0, createdAt)
 	l.UpdatedAt = time.Unix(0, updated)
 	return l, true, nil
+}
+
+// ErrLearningNotFound is returned by PromoteLearning/PruneLearning when no learning
+// matches the given pattern_key. The dream worker proposes ops from an LLM, which
+// can hallucinate a pattern_key no row backs; surfacing this lets core (the dream's
+// OnResult) skip the curated write instead of recording a fact with no backing DB
+// promotion (AD-6).
+var ErrLearningNotFound = errors.New("memory: no learning for pattern key")
+
+// PromoteLearning sets the status of the learning with patternKey to "promoted",
+// returning ErrLearningNotFound if no row matches.
+func (s *Store) PromoteLearning(ctx context.Context, patternKey string) error {
+	return s.setLearningStatus(ctx, patternKey, LearningStatusPromoted)
+}
+
+// PruneLearning sets the status of the learning with patternKey to "pruned",
+// returning ErrLearningNotFound if no row matches.
+func (s *Store) PruneLearning(ctx context.Context, patternKey string) error {
+	return s.setLearningStatus(ctx, patternKey, LearningStatusPruned)
+}
+
+// setLearningStatus updates a learning's status (+ updated_at) by pattern_key. It
+// returns ErrLearningNotFound when the UPDATE matched no row, so a hallucinated key
+// is rejected rather than silently no-op'd.
+func (s *Store) setLearningStatus(ctx context.Context, patternKey, status string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE learnings SET status = ?, updated_at = ? WHERE pattern_key = ?`,
+		status, time.Now().UnixNano(), patternKey)
+	if err != nil {
+		return fmt.Errorf("memory: set learning status %q: %w", status, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("memory: set learning status %q rows affected: %w", status, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: %q", ErrLearningNotFound, patternKey)
+	}
+	return nil
 }
 
 // Learnings returns up to n learnings with the given status, most-recently-updated
