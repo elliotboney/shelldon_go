@@ -1,11 +1,13 @@
 package bus
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/elliotboney/shelldon_go/contracts"
 )
@@ -113,6 +115,72 @@ func TestPublish_NoRoute(t *testing.T) {
 	// The error must name the offending kind for diagnostics (review patch).
 	if !strings.Contains(err.Error(), string(contracts.KindJob)) {
 		t.Errorf("error %q does not name the offending kind %q", err, contracts.KindJob)
+	}
+}
+
+// TestPublishContext_Delivers proves the ctx-aware sibling routes and delivers
+// exactly like Publish when the context is live.
+func TestPublishContext_Delivers(t *testing.T) {
+	h := New()
+	jobCh := make(chan contracts.Envelope, 1)
+	if err := h.Register(contracts.KindJob, jobCh); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	want := jobEnvelope("hello")
+	if err := h.PublishContext(context.Background(), want); err != nil {
+		t.Fatalf("PublishContext: unexpected error %v", err)
+	}
+
+	select {
+	case got := <-jobCh:
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("delivered envelope mismatch\n got: %#v\nwant: %#v", got, want)
+		}
+	default:
+		t.Fatal("KindJob destination received nothing")
+	}
+}
+
+// TestPublishContext_CancelUnblocks proves a stalled consumer cannot hang a
+// producer: with no reader on an unbuffered channel, a cancelled context unblocks
+// the send and returns context.Canceled instead of hanging (the deferred-debt fix).
+func TestPublishContext_CancelUnblocks(t *testing.T) {
+	h := New()
+	jobCh := make(chan contracts.Envelope) // unbuffered, no reader → send would block forever
+	if err := h.Register(contracts.KindJob, jobCh); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		// Give PublishContext a moment to reach the blocking select, then cancel.
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- h.PublishContext(ctx, jobEnvelope("stalled")) }()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("PublishContext hung on a stalled consumer; cancel did not unblock it")
+	}
+}
+
+// TestPublishContext_NoRoute proves PublishContext fails safe with ErrNoRoute for
+// an unregistered kind, exactly like Publish.
+func TestPublishContext_NoRoute(t *testing.T) {
+	h := New()
+	if err := h.Register(contracts.KindResult, make(chan contracts.Envelope, 1)); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if err := h.PublishContext(context.Background(), jobEnvelope("orphan")); !errors.Is(err, ErrNoRoute) {
+		t.Fatalf("got %v, want ErrNoRoute", err)
 	}
 }
 

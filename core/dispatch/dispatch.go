@@ -61,11 +61,11 @@ func (d *Dispatcher) Serve(ctx context.Context) error {
 			res, err := d.arb.Submit(ctx, contracts.Job{Input: msg.Text, ConvoID: msg.ConvoID})
 			switch {
 			case err == nil:
-				d.publishReply(msg.ConvoID, res.Reply)
+				d.publishReply(ctx, msg.ConvoID, res.Reply)
 			case ctx.Err() != nil:
 				return ctx.Err() // shutdown, not a brain failure — do not ack
 			default:
-				d.publishReply(msg.ConvoID, reflexAck) // busy / timeout / brain absent: stay alive
+				d.publishReply(ctx, msg.ConvoID, reflexAck) // busy / timeout / brain absent: stay alive
 			}
 		}
 	}
@@ -73,8 +73,8 @@ func (d *Dispatcher) Serve(ctx context.Context) error {
 
 // publishReply sends one outbound message for convoID. Both the worker reply and
 // the reflex acknowledgement share it.
-func (d *Dispatcher) publishReply(convoID, text string) {
-	_ = d.hub.Publish(contracts.Envelope{
+func (d *Dispatcher) publishReply(ctx context.Context, convoID, text string) {
+	_ = d.hub.PublishContext(ctx, contracts.Envelope{
 		Header:  contracts.Header{Kind: contracts.KindOutboundMessage, Src: "core", Dst: "cli"},
 		Payload: contracts.OutboundMessage{ConvoID: convoID, Text: text},
 	})

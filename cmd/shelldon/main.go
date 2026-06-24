@@ -1,9 +1,13 @@
 // Command shelldon is the single supervised process: it wires the bus, arbiter,
-// worker stub, personality-state checkpoint, core dispatch loop, CLI transport
-// adapter, terminal face renderer, and the reflex-tier scheduler (running the
-// blink + mood-drift reflexes as named jobs), then runs them as supervised edges
-// under the core suture root until a shutdown signal arrives, draining edges in
-// reverse start order (AD-5).
+// real LLM-backed worker (the Monolith+ worker over the broker — a keyless broker
+// degrades to a reflex acknowledgement via the Story 2.6 path, so the pet still
+// runs offline), personality-state checkpoint, core dispatch loop, a selectable
+// chat-transport adapter (CLI by default; Telegram via SHELLDON_TRANSPORT=telegram
+// — AD-12 pluggable transport, the adapter holds its own bot-token credential),
+// terminal face renderer, and the tier-shaped scheduler (running the blink +
+// mood-drift reflex jobs and the LLM-driven proactive-ping turn job), then runs
+// them as supervised edges under the core suture root until a shutdown signal
+// arrives, draining edges in reverse start order (AD-5).
 package main
 
 import (
@@ -16,18 +20,22 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/elliotboney/shelldon_go/broker"
 	"github.com/elliotboney/shelldon_go/contracts"
 	"github.com/elliotboney/shelldon_go/core/arbiter"
 	"github.com/elliotboney/shelldon_go/core/bus"
 	"github.com/elliotboney/shelldon_go/core/compositor"
 	"github.com/elliotboney/shelldon_go/core/dispatch"
+	"github.com/elliotboney/shelldon_go/core/proactive"
 	"github.com/elliotboney/shelldon_go/core/reflexes"
 	"github.com/elliotboney/shelldon_go/core/scheduler"
 	"github.com/elliotboney/shelldon_go/core/state"
 	"github.com/elliotboney/shelldon_go/core/supervisor"
+	"github.com/elliotboney/shelldon_go/core/turntier"
 	"github.com/elliotboney/shelldon_go/display/terminal"
 	"github.com/elliotboney/shelldon_go/transport/cli"
-	"github.com/elliotboney/shelldon_go/worker"
+	"github.com/elliotboney/shelldon_go/transport/telegram"
+	"github.com/elliotboney/shelldon_go/worker/monolith"
 )
 
 func main() {
@@ -36,10 +44,16 @@ func main() {
 
 	hub := bus.New()
 	// turnTimeout bounds a worker turn so an absent/slow brain degrades to a reflex
-	// acknowledgement instead of freezing the pet (AD-8/NFR13). Tunable story-time
-	// config; the M0 stub answers instantly, so this stays dormant until Epic 3.
+	// acknowledgement instead of freezing the pet (AD-8/NFR13). It now bounds the
+	// real LLM call: a timeout cancels the in-flight broker request (Story 3.2/3.3).
 	const turnTimeout = 30 * time.Second
-	arb := arbiter.New(worker.Stub{}, turnTimeout)
+	// The broker is the sole credential holder + model egress (AD-9); construct it
+	// once and back the real worker with it. New() logs credential presence/absence
+	// (AD-17); a keyless broker returns ErrAllProvidersFailed at call time, which
+	// the arbiter degrades to a reflex ack (AD-8) — the pet runs offline.
+	b := broker.New()
+	w := monolith.New(b)
+	arb := arbiter.New(w, turnTimeout)
 
 	// Personality-state: restore from the RAM checkpoint, or defaults on first
 	// boot (AD-16). The checkpoint lives beside, not inside, the Epic 4 durable
@@ -74,27 +88,73 @@ func main() {
 	}
 
 	disp := dispatch.New(hub, arb, inbound, store)
-	adapter := cli.New(hub, outbound, os.Stdin, os.Stdout, "cli")
+
+	// Transport selection (AD-12): exactly one chat adapter is wired. The bus is
+	// point-to-point, so only the selected adapter registers on the outbound route.
+	// CLI is the default; Telegram is opted in via SHELLDON_TRANSPORT=telegram and
+	// holds its own bot-token credential (never a broker model/tool cred, AD-9). A
+	// Telegram misconfiguration (e.g. no token) degrades to reflex-only under
+	// supervision rather than crashing core (AD-5/AD-12) — the rest of the pet runs.
+	transportName := "cli-transport"
+	// ownerConvoID is the conversation a proactive ping targets. CLI renders any
+	// outbound regardless of ConvoID, so "cli" works; Telegram maps ConvoID → chat
+	// id, so use the configured owner chat.
+	ownerConvoID := "cli"
+	var transportServe func(ctx context.Context) error
+	switch os.Getenv("SHELLDON_TRANSPORT") {
+	case "telegram":
+		transportName = "telegram-transport"
+		ownerConvoID = os.Getenv("SHELLDON_TELEGRAM_OWNER_ID")
+		tg, terr := telegram.NewFromEnv(hub, outbound)
+		if terr != nil {
+			slog.Error("telegram transport unavailable; degrading to reflex-only", "err", terr)
+			transportServe = func(ctx context.Context) error {
+				<-ctx.Done() // dormant until shutdown: a missing token won't fix itself, so don't crash-loop the supervisor (AD-5 degrade-to-reflex-only)
+				return ctx.Err()
+			}
+		} else {
+			transportServe = tg.Serve
+		}
+	default:
+		cliAdapter := cli.New(hub, outbound, os.Stdin, os.Stdout, "cli")
+		transportServe = cliAdapter.Serve
+	}
+
 	comp := compositor.New(hub)
 	renderer := terminal.New(display, os.Stdout)
 	rng := rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0))
 	blink := reflexes.NewBlink(comp, store, rng)
 	mood := reflexes.NewMoodDrift(store)
 
-	// Reflex-tier scheduler (AD-13): one supervised edge runs both reflexes as
-	// named jobs on their own cadences, in-core with no LLM. The turn tier
-	// (Story 3.5) will register more jobs with no change to the scheduler loop.
+	// One tier-shaped scheduler (AD-13) runs both tiers as named jobs on their own
+	// cadences: the reflex tier (blink, mood-drift) in-core with no LLM, and the
+	// turn tier (the proactive ping) which costs a worker turn. Turn jobs gate
+	// inside their own Run (cooldown/budget/battery) and submit through the arbiter
+	// — the scheduler loop is unchanged (Yui's condition, Story 3.5).
 	sched := scheduler.New()
 	sched.Register(scheduler.Job{Name: "blink", NextDelay: blink.NextDelay, Run: blink.Run})
 	sched.Register(scheduler.Job{Name: "mood-drift", NextDelay: mood.NextDelay, Run: mood.Run})
 
+	// Proactive-ping turn job (FR4): the pet sometimes messages first, bounded by a
+	// minimum-interval cooldown and a daily credit/turn budget so it never spams or
+	// overspends (AD-8/NFR14). Conservative tunable config; in-memory budget/cooldown
+	// reset on restart. Power is ACPower until the PiSugar2 reader replaces it (Epic 6).
+	const (
+		proactiveBudgetPerDay = 6
+		proactiveCadence      = 30 * time.Minute // how often to consider firing
+		proactiveCooldown     = 2 * time.Hour    // minimum interval between pings
+	)
+	proactiveBudget := turntier.NewBudget(proactiveBudgetPerDay)
+	sched.Register(proactive.NewJob(hub, arb, proactiveBudget, turntier.ACPower{}, ownerConvoID,
+		func() time.Duration { return proactiveCadence }, proactiveCooldown))
+
 	root := supervisor.New("shelldon")
-	// Start order: state-checkpoint first, then dispatch, then CLI → reverse drain
-	// stops CLI, then dispatch, then state-checkpoint last so its shutdown flush
-	// captures the final state after the other edges have stopped.
+	// Start order: state-checkpoint first, then dispatch, then transport → reverse
+	// drain stops the transport, then dispatch, then state-checkpoint last so its
+	// shutdown flush captures the final state after the other edges have stopped.
 	root.Add(supervisor.Guard("state-checkpoint", store.RunCheckpointLoop))
 	root.Add(supervisor.Guard("core-dispatch", disp.Serve))
-	root.Add(supervisor.Guard("cli-transport", adapter.Serve))
+	root.Add(supervisor.Guard(transportName, transportServe))
 	root.Add(supervisor.Guard("display-terminal", renderer.Serve))
 	// Added last so reverse-drain stops it first: the pet stops producing reflex
 	// frames before the renderer drains.

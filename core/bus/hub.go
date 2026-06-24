@@ -11,6 +11,7 @@
 package bus
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -73,4 +74,27 @@ func (h *Hub) Publish(env contracts.Envelope) error {
 	}
 	dst <- env
 	return nil
+}
+
+// PublishContext is the ctx-aware sibling of Publish: it routes identically (same
+// ErrNoRoute fail-safe on an unknown kind) but the delivery select races the send
+// against ctx — so a stalled consumer can't hang a producer that holds a
+// turn/shutdown context. It returns ctx.Err() if the context is cancelled before
+// the send completes. Producers with a context in hand (the dispatch turn loop,
+// proactive turns, the Telegram read loop) use this; Publish stays for ctx-less
+// callers (boot-time pushes). The routing-table lock is released before the select,
+// as in Publish.
+func (h *Hub) PublishContext(ctx context.Context, env contracts.Envelope) error {
+	h.mu.RLock()
+	dst, ok := h.routes[env.Kind]
+	h.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("%w: %q", ErrNoRoute, env.Kind)
+	}
+	select {
+	case dst <- env:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
