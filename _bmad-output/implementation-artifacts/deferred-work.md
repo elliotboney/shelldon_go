@@ -187,3 +187,8 @@
 - **AppendFact accepts arbitrary relPath — no canonical prefix guard** — `WriteFile` rejects `vault/` and `DIRECTIVE.md` but `AppendFact` has no prefix guard; future callers could write anywhere in the curated tree. File: `core/memory/curated.go`.
 - **Race between PromoteLearning and concurrent ApplyLearning UPSERT** — `ApplyLearning`'s UPSERT resets `status='pending'`; a concurrent reply turn capturing the same `pattern_key` could undo a concurrent dream promotion. SQLite WAL + AD-6 single-writer mitigates in practice. File: `core/memory/learnings.go`.
 - **ApplyMemoryOps silently drops MemoryOpPromoteLearning/PruneLearning** — the dispatch path's `ApplyMemoryOps` switch has no case for dream ops; they would be silently dropped if ever routed there. No current code routes dream ops through dispatch. File: `core/memory/learnings.go`.
+
+## Deferred from: code review of 5-1-privsep-lite-worker-subprocess-gob-transport-swap (2026-06-25)
+
+- **`Close()` discards cmd.Wait() exit status** — project pattern is `_ = cmd.Wait()` in teardownLocked; logging would add AD-17 observability for abnormal child exit. File: `worker/privsep/privsep.go`.
+- **No panic recovery in `runChild`** — child panic crashes the subprocess; surfaces parent-side as EOF error → arbiter reflex degrade. AD-8 contract upheld; "dead-child policy" decision documented in story 5.1 spec. Adding `recover()` in the child loop would be more graceful. File: `worker/privsep/child.go`.

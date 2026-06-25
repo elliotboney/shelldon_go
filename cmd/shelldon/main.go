@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -37,12 +38,29 @@ import (
 	"github.com/elliotboney/shelldon_go/display/terminal"
 	"github.com/elliotboney/shelldon_go/transport/cli"
 	"github.com/elliotboney/shelldon_go/transport/telegram"
+	"github.com/elliotboney/shelldon_go/worker"
 	"github.com/elliotboney/shelldon_go/worker/monolith"
+	"github.com/elliotboney/shelldon_go/worker/privsep"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Privsep worker child (Story 5.1, AD-2): when this binary is re-exec'd with the
+	// sentinel env, the process IS the uid-separated worker behind the wall — it
+	// serves the parent over the inherited UDS+gob socket and never builds the bus,
+	// scheduler, or transport. The child hosts the broker-backed Monolith+ worker so
+	// replies work across the wall; AD-9's cred-parent-side wiring (the worker reaching
+	// the broker across the wall) is the deferred brain-across-the-wall follow-on, so
+	// model creds presently live in this child process (a known, documented gap).
+	if privsep.IsChild() {
+		if err := privsep.ChildMain(ctx, monolith.New(broker.New())); err != nil {
+			slog.Error("privsep worker child exited with error", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	hub := bus.New()
 	// turnTimeout bounds a worker turn so an absent/slow brain degrades to a reflex
@@ -89,10 +107,32 @@ func main() {
 	const recentWindowN = 10 // recent-conversation window injected into each prompt (tunable)
 	memCtx := memory.NewContext(mem, curated, recentWindowN)
 
-	// The Monolith+ worker over the broker, memory-augmented (Story 4.4): it
-	// assembles DIRECTIVE + about + recent window into each prompt (AD-7) through the
-	// read-only context seam, then proposes a reply. The arbiter bounds the turn.
-	w := monolith.New(b, monolith.WithContextSource(memCtx))
+	// Worker selection behind the AD-2 swappable seam. Default: the in-process
+	// Monolith+ goroutine worker, memory-augmented (Story 4.4) — it assembles
+	// DIRECTIVE + about + recent window into each prompt (AD-7) through the read-only
+	// context seam. SHELLDON_WORKER=privsep selects the M3 Privsep-lite subprocess
+	// worker behind the SAME seam: the arbiter, dispatch, and scheduler are unchanged
+	// (AD-4 — the transport swap reshapes no caller). SHELLDON_WORKER_UID drops the
+	// child to that uid (Linux + root only; Story 5.2 adds the matching vault
+	// exclusion). Whichever worker is selected, the arbiter bounds the turn.
+	var w worker.Worker
+	switch os.Getenv("SHELLDON_WORKER") {
+	case "privsep":
+		uid := 0
+		if v := os.Getenv("SHELLDON_WORKER_UID"); v != "" {
+			if parsed, perr := strconv.Atoi(v); perr == nil {
+				uid = parsed
+			} else {
+				slog.Warn("invalid SHELLDON_WORKER_UID; running child same-uid", "value", v, "err", perr)
+			}
+		}
+		pw := privsep.New(privsep.WithUID(uid, uid))
+		defer func() { _ = pw.Close() }()
+		w = pw
+		slog.Info("worker: privsep-lite subprocess (M3)", "uid", uid)
+	default:
+		w = monolith.New(b, monolith.WithContextSource(memCtx))
+	}
 	arb := arbiter.New(w, turnTimeout)
 
 	inbound := make(chan contracts.Envelope, 16)
